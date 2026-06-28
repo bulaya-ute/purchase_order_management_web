@@ -1,0 +1,68 @@
+/* Theme tokens. Light is the default; [data-theme="dark"] overrides.
+   The resolved theme is set on <html data-theme="..."> by the no-flash script
+   in index.html and kept in sync by ThemeProvider. */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef0f3;
+  --color-border: #d8dce1;
+  --color-text: #1b1f24;
+  --color-text-muted: #5a626b;
+  --color-primary: #2563eb;
+  --color-primary-contrast: #ffffff;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #0f1216;
+  --color-surface: #181c22;
+  --color-surface-muted: #20262e;
+  --color-border: #2d343d;
+  --color-text: #e7eaee;
+  --color-text-muted: #9aa3ad;
+  --color-primary: #5b8def;
+  --color-primary-contrast: #0f1216;
+  --color-danger: #f87171;
+  --color-success: #4ade80;
+
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
