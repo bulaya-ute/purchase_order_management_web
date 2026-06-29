@@ -3,6 +3,46 @@ import { buildQueryString } from './types';
 import type { PagedQuery, PagedResult } from './types';
 import type { ApprovalDto } from './approvalsApi';
 
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.CreatePurchaseOrderRequest. */
+export interface CreatePurchaseOrderRequest {
+  companyId: number;
+  currency: string;
+  notes?: string | null;
+}
+
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.UpdatePurchaseOrderRequest. */
+export interface UpdatePurchaseOrderRequest {
+  currency: string;
+  notes?: string | null;
+  rowVersion?: string | null;
+}
+
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.CreatePurchaseOrderLineItemRequest. */
+export interface CreatePurchaseOrderLineItemRequest {
+  description: string;
+  quantity: number;
+  unitCost: number;
+  discountPercentage?: number | null;
+  taxPercentage?: number | null;
+}
+
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.UpdatePurchaseOrderLineItemRequest. */
+export interface UpdatePurchaseOrderLineItemRequest {
+  description: string;
+  quantity: number;
+  unitCost: number;
+  discountPercentage?: number | null;
+  taxPercentage?: number | null;
+  rowVersion?: string | null;
+}
+
+/** Mirrors PurchaseOrderManagement.Api.Dtos.Approvals.CreateApprovalDefinitionRequest. */
+export interface CreateApprovalDefinitionRequest {
+  requiredRoleId?: number | null;
+  requiredUserId?: number | null;
+  sequenceOrder: number;
+}
+
 /** PO lifecycle status — string enum mirroring PurchaseOrderManagement.Api.Enums.PurchaseOrderStatus. */
 export type PurchaseOrderStatus = 'Draft' | 'Open' | 'Approved' | 'Rejected' | 'Cancelled';
 
@@ -95,6 +135,52 @@ export function listPurchaseOrders(
 
 export function getPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
   return apiClient.get<PurchaseOrderDetail>(`/purchase-orders/${id}`);
+}
+
+export function createPurchaseOrder(
+  request: CreatePurchaseOrderRequest,
+): Promise<PurchaseOrderDetail> {
+  return apiClient.post<PurchaseOrderDetail>('/purchase-orders', request);
+}
+
+export function updatePurchaseOrder(
+  id: number,
+  request: UpdatePurchaseOrderRequest,
+): Promise<PurchaseOrderDetail> {
+  return apiClient.put<PurchaseOrderDetail>(`/purchase-orders/${id}`, request);
+}
+
+export function addLineItem(
+  id: number,
+  request: CreatePurchaseOrderLineItemRequest,
+): Promise<PurchaseOrderLineItem> {
+  return apiClient.post<PurchaseOrderLineItem>(`/purchase-orders/${id}/line-items`, request);
+}
+
+export function updateLineItem(
+  id: number,
+  lineItemId: number,
+  request: UpdatePurchaseOrderLineItemRequest,
+): Promise<PurchaseOrderLineItem> {
+  return apiClient.put<PurchaseOrderLineItem>(
+    `/purchase-orders/${id}/line-items/${lineItemId}`,
+    request,
+  );
+}
+
+export function deleteLineItem(id: number, lineItemId: number): Promise<void> {
+  return apiClient.delete<void>(`/purchase-orders/${id}/line-items/${lineItemId}`);
+}
+
+export function addApprovalDefinition(
+  id: number,
+  request: CreateApprovalDefinitionRequest,
+): Promise<ApprovalDto> {
+  return apiClient.post<ApprovalDto>(`/purchase-orders/${id}/approvals`, request);
+}
+
+export function deleteApprovalDefinition(id: number, approvalId: number): Promise<void> {
+  return apiClient.delete<void>(`/purchase-orders/${id}/approvals/${approvalId}`);
 }
 
 export function submitPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
