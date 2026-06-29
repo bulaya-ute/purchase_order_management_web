@@ -6,6 +6,7 @@ import { AppShell } from './shell/AppShell';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { PurchaseOrdersScreen } from './screens/PurchaseOrdersScreen';
+import { PurchaseOrderDetailScreen } from './screens/PurchaseOrderDetailScreen';
 import { ApprovalsScreen } from './screens/ApprovalsScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
 import { CompaniesScreen } from './screens/admin/CompaniesScreen';
@@ -27,6 +28,7 @@ function App() {
             <Route element={<AppShell />}>
               <Route path="/" element={<DashboardScreen />} />
               <Route path="/purchase-orders" element={<PurchaseOrdersScreen />} />
+              <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailScreen />} />
               <Route path="/approvals" element={<ApprovalsScreen />} />
               <Route path="/suppliers" element={<SuppliersScreen />} />
               <Route path="/admin/companies" element={<CompaniesScreen />} />

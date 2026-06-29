@@ -117,6 +117,191 @@
   color: var(--color-primary);
 }
 
+.badge-info {
+  background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+}
+
+.badge-danger {
+  background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.badge-warning {
+  background-color: color-mix(in srgb, #b8860b 22%, transparent);
+  color: #8a6500;
+}
+
+/* ----- Purchase order detail ----- */
+.po-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 1080px;
+}
+
+.po-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.po-detail-header h2 {
+  margin: 0;
+}
+
+.po-back-link {
+  font-size: 0.85rem;
+  color: var(--color-primary);
+}
+
+.po-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.po-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.po-meta-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.po-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.po-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background-color: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.po-chip-set {
+  background-color: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+  border-color: transparent;
+}
+
+.po-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.po-section h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.po-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.po-total-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.po-total-item.po-total-grand .po-total-value {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.po-total-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.po-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bid-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.bid-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bid-card-awarded {
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 1px var(--color-success);
+}
+
+.bid-card-name {
+  font-weight: 600;
+}
+
+.bid-card-total {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+
+.bid-card-meta {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.bid-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.approval-act {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.approval-act textarea {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.approval-act-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
 .role-chip-list {
   display: flex;
   flex-wrap: wrap;
