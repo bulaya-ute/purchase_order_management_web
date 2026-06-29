@@ -269,6 +269,30 @@
   color: var(--color-danger);
 }
 
+/* File upload */
+.file-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.file-upload-status {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.file-upload-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.file-upload-info a {
+  color: var(--color-primary);
+}
+
 .role-multiselect {
   display: flex;
   flex-direction: column;
