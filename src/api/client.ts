@@ -9,7 +9,7 @@ import type { ProblemDetails } from './apiError';
  */
 const API_BASE = '/api';
 
-type JsonBody = Record<string, unknown> | unknown[];
+type JsonBody = object;
 
 /** Caller-supplied options, excluding the bits the client controls itself (method/body/credentials). */
 type RequestOptions = Omit<RequestInit, 'method' | 'body' | 'credentials'>;
