@@ -278,6 +278,29 @@
   gap: 0.4rem;
 }
 
+.bid-card-clickable {
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+.bid-card-clickable:hover {
+  border-color: var(--color-primary);
+}
+
+.bid-preview-card {
+  max-width: 760px;
+  text-align: left;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.bid-preview-card h4 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 0.92rem;
+}
+
 .approval-act {
   display: flex;
   flex-direction: column;

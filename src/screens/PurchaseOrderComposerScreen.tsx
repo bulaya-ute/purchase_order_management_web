@@ -21,6 +21,7 @@ import type { User } from '../api/usersApi';
 import { listRoles } from '../api/rolesApi';
 import type { Role } from '../api/rolesApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { BidManager } from '../components/BidManager';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
@@ -238,6 +239,17 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
       setLoadError(getErrorMessage(err, 'Failed to load the purchase order.'));
     } finally {
       setIsLoading(false);
+    }
+  }, [poId]);
+
+  // Refreshes PO data (e.g. after awarding a bid) without flipping the full-screen loading
+  // state, which would otherwise unmount the bid preview modal mid-interaction.
+  const refreshSilently = useCallback(async () => {
+    try {
+      const detail = await getPurchaseOrder(poId);
+      setPo(detail);
+    } catch {
+      // Best-effort refresh; surfaced errors from the triggering action already toast.
     }
   }, [poId]);
 
@@ -712,10 +724,19 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
         </form>
       </div>
 
-      {/* Bid-based composition placeholder */}
+      {/* Bid-based composition */}
       <div className="admin-panel po-section" style={{ padding: '1rem' }}>
         <h3>Supplier bids &amp; comparison</h3>
-        <div className="admin-empty">Coming in the next step.</div>
+        <p className="form-hint">
+          A PO is composed via direct-entry lines (above) OR supplier bids. Select a winning bid
+          to mark it for award — its items are copied into the PO once it is fully approved.
+        </p>
+        <BidManager
+          purchaseOrderId={po.id}
+          currency={po.currency}
+          awardedSupplierBidId={po.awardedSupplierBidId}
+          onAwarded={() => void refreshSilently()}
+        />
       </div>
 
       {/* Approvals */}

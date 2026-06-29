@@ -6,10 +6,7 @@ import {
   getPurchaseOrder,
   payPurchaseOrder,
 } from '../api/purchaseOrdersApi';
-import type {
-  PurchaseOrderDetail,
-  SupplierBidSummary,
-} from '../api/purchaseOrdersApi';
+import type { PurchaseOrderDetail } from '../api/purchaseOrdersApi';
 import {
   approveApproval,
   getMyApprovals,
@@ -17,11 +14,12 @@ import {
 } from '../api/approvalsApi';
 import type { ApprovalDto } from '../api/approvalsApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { BidCard } from '../components/BidCard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
-import { formatDate, formatDateTime, formatMoney } from '../utils/format';
+import { formatDate, formatMoney } from '../utils/format';
 import './admin/admin.css';
 
 export function PurchaseOrderDetailScreen() {
@@ -404,34 +402,5 @@ export function PurchaseOrderDetailScreen() {
         <Toast toast={toast} onDismiss={() => setToast(null)} />
       </div>
     </section>
-  );
-}
-
-interface BidCardProps {
-  bid: SupplierBidSummary;
-  currency: string;
-  isAwarded: boolean;
-}
-
-function BidCard({ bid, currency, isAwarded }: BidCardProps) {
-  return (
-    <div className={`bid-card ${isAwarded ? 'bid-card-awarded' : ''}`}>
-      <span className="bid-card-name">{bid.supplierName}</span>
-      <span className="bid-card-total">{formatMoney(bid.bidTotal, currency)}</span>
-      <span className="bid-card-meta">
-        {bid.itemCount} item{bid.itemCount === 1 ? '' : 's'} · {bid.quotationCount} quotation
-        {bid.quotationCount === 1 ? '' : 's'}
-      </span>
-      <div className="bid-card-badges">
-        {isAwarded && <span className="badge badge-success">Awarded</span>}
-        {bid.hasExpiredQuotation ? (
-          <span className="badge badge-danger">Expired quotation</span>
-        ) : bid.earliestQuotationExpiryUtc ? (
-          <span className="badge badge-warning">
-            Expires {formatDateTime(bid.earliestQuotationExpiryUtc)}
-          </span>
-        ) : null}
-      </div>
-    </div>
   );
 }

@@ -2,6 +2,9 @@ import { apiClient } from './client';
 import { buildQueryString } from './types';
 import type { PagedQuery, PagedResult } from './types';
 import type { ApprovalDto } from './approvalsApi';
+import type { SupplierBidSummary } from './bidsApi';
+
+export type { SupplierBidSummary } from './bidsApi';
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.CreatePurchaseOrderRequest. */
 export interface CreatePurchaseOrderRequest {
@@ -77,20 +80,6 @@ export interface PurchaseOrderLineItem {
   lineSubtotal: number;
   lineTotal: number;
   rowVersion: string;
-}
-
-/** Mirrors PurchaseOrderManagement.Api.Dtos.SupplierBids.SupplierBidSummaryDto. */
-export interface SupplierBidSummary {
-  id: number;
-  purchaseOrderId: number;
-  supplierId: number;
-  supplierName: string;
-  notes: string | null;
-  bidTotal: number;
-  itemCount: number;
-  quotationCount: number;
-  hasExpiredQuotation: boolean;
-  earliestQuotationExpiryUtc: string | null;
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderDto. */
@@ -197,4 +186,18 @@ export function deliverPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
 
 export function cancelPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
   return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${id}/cancel`);
+}
+
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.SelectAwardedBidRequest. */
+export interface SelectAwardedBidRequest {
+  supplierBidId: number;
+}
+
+export function setAwardedBid(
+  id: number,
+  supplierBidId: number,
+): Promise<PurchaseOrderDetail> {
+  return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${id}/awarded-bid`, {
+    supplierBidId,
+  } satisfies SelectAwardedBidRequest);
 }
