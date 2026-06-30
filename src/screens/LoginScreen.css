@@ -15,8 +15,9 @@
   padding: 2rem;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up var(--transition-base) both;
 }
 
 .login-title {
@@ -42,11 +43,13 @@
   background-color: var(--color-bg);
   color: var(--color-text);
   font-size: 0.95rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .login-card input:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .login-submit {
@@ -57,6 +60,15 @@
   background-color: var(--color-primary);
   color: var(--color-primary-contrast);
   font-weight: 600;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.login-submit:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-primary) 85%, black);
+}
+
+.login-submit:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .login-submit:disabled {
@@ -70,4 +82,5 @@
   background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
   color: var(--color-danger);
   font-size: 0.9rem;
+  animation: slide-up var(--transition-base) both;
 }

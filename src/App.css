@@ -17,6 +17,7 @@
 .app-title {
   font-size: 1.15rem;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .app-main {
@@ -58,6 +59,12 @@
   color: var(--color-text-muted);
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-toggle button:hover:not(.is-active) {
+  background-color: var(--color-surface);
+  color: var(--color-text);
 }
 
 .theme-toggle button.is-active {
