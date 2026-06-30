@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   addBidItem,
   attachBidToPurchaseOrder,
@@ -217,7 +218,15 @@ export function BidManager({ purchaseOrderId, awardedSupplierBidId, onAwarded }:
       <div className="po-meta" style={{ marginTop: '0.75rem', alignItems: 'flex-start' }}>
         {/* + New Bid shortcut */}
         <form className="admin-form" onSubmit={handleCreateBid} style={{ flex: '1 1 280px' }}>
-          <h4 style={{ marginTop: 0 }}>+ New bid</h4>
+          <h4 style={{ marginTop: 0 }}>
+            + New bid
+            <span style={{ fontWeight: 400, fontSize: '0.78rem', marginLeft: '0.5rem' }}>
+              or{' '}
+              <Link to={`/supplier-bids/new?purchaseOrderId=${purchaseOrderId}`}>
+                open the full bid composer
+              </Link>
+            </span>
+          </h4>
           {createBidError && (
             <div className="admin-error" role="alert">
               {createBidError}

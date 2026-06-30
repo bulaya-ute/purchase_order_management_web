@@ -81,17 +81,19 @@ test('standalone quotation + standalone bid + attach to a Draft PO, with a multi
     fs.rmSync(tmpFile, { force: true });
   }
 
-  // ----- Create a standalone bid via the Supplier Bids library screen. -----
+  // ----- Create a standalone bid via the Supplier Bids composer screen. -----
   await page.getByRole('link', { name: 'Supplier Bids' }).click();
   await expect(page).toHaveURL(/\/supplier-bids$/);
-  await page.getByRole('button', { name: '+ New Bid' }).click();
-  await page.selectOption('#new-bid-supplier', { label: supplier.name });
-  await page.getByRole('button', { name: 'Create bid' }).click();
-  await expect(page.getByText('Bid created.')).toBeVisible();
+  await page.getByRole('button', { name: '+ New bid' }).click();
+  await expect(page).toHaveURL(/\/supplier-bids\/new$/);
+  await page.selectOption('#bid-composer-supplier', { label: supplier.name });
+  await expect(page.getByRole('heading', { name: `${supplier.name} — bid items` })).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page).toHaveURL(/\/supplier-bids$/);
 
-  // Newly created bid auto-selects and the detail panel shows it as Unattached.
-  const detailPanel = page.locator('.admin-panel', { has: page.getByRole('heading', { name: supplier.name }) });
-  await expect(detailPanel.getByText('Unattached')).toBeVisible();
+  // The new bid appears in the table as Unattached.
+  const bidRow = page.locator('tr', { has: page.getByRole('cell', { name: supplier.name }) });
+  await expect(bidRow.getByText('Unattached')).toBeVisible();
 
   // ----- Create a Draft PO and attach the standalone bid to it. -----
   await page.getByRole('link', { name: 'Purchase Orders' }).click();

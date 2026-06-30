@@ -13,6 +13,7 @@ import { ApprovalsScreen } from './screens/ApprovalsScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
 import { QuotationsScreen } from './screens/QuotationsScreen';
 import { SupplierBidsScreen } from './screens/SupplierBidsScreen';
+import { SupplierBidComposerScreen } from './screens/SupplierBidComposerScreen';
 import { CompaniesScreen } from './screens/admin/CompaniesScreen';
 import { UsersScreen } from './screens/admin/UsersScreen';
 import { RolesScreen } from './screens/admin/RolesScreen';
@@ -42,6 +43,7 @@ function App() {
               <Route path="/suppliers" element={<SuppliersScreen />} />
               <Route path="/quotations" element={<QuotationsScreen />} />
               <Route path="/supplier-bids" element={<SupplierBidsScreen />} />
+              <Route path="/supplier-bids/new" element={<SupplierBidComposerScreen />} />
               <Route path="/admin/companies" element={<CompaniesScreen />} />
               <Route path="/admin/users" element={<UsersScreen />} />
               <Route path="/admin/roles" element={<RolesScreen />} />
