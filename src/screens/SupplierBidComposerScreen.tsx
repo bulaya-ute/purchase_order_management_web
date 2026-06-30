@@ -150,7 +150,7 @@ export function SupplierBidComposerScreen() {
   };
 
   return (
-    <section className="admin-screen" style={{ maxWidth: '1280px' }}>
+    <section className="admin-screen admin-screen--wide">
       <div className="admin-header">
         <h2>New Supplier Bid</h2>
         <Link

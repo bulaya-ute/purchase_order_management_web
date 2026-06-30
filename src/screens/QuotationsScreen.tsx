@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createQuotation, listQuotations } from '../api/quotationsApi';
 import type { QuotationListQuery, QuotationSummary } from '../api/quotationsApi';
 import type { CreateQuotationRequest } from '../api/quotationsApi';
@@ -16,6 +16,127 @@ import './admin/admin.css';
 type UsedFilter = '' | 'used' | 'unused';
 type ExpiredFilter = '' | 'expired' | 'active';
 
+function FilePreviewModal({
+  quotation,
+  onClose,
+}: {
+  quotation: QuotationSummary;
+  onClose: () => void;
+}) {
+  const ext = quotation.originalFileName?.split('.').pop()?.toLowerCase() ?? '';
+  const isPdf = ext === 'pdf';
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+  const canPreview = isPdf || isImage;
+
+  return (
+    <div
+      className="modal-overlay"
+      role="presentation"
+      onClick={onClose}
+      style={{ alignItems: 'center', padding: '1.5rem' }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Preview: ${quotation.originalFileName ?? 'file'}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          width: '90vw',
+          maxWidth: '900px',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.25rem',
+            borderBottom: '1px solid var(--color-border)',
+          }}
+        >
+          <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+            {quotation.originalFileName ?? 'File preview'}
+          </span>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <a
+              href={quotation.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-secondary btn-small"
+            >
+              Open file
+            </a>
+            <button type="button" className="btn btn-secondary btn-small" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {canPreview ? (
+            isPdf ? (
+              <iframe
+                src={quotation.fileUrl}
+                title={quotation.originalFileName ?? 'PDF'}
+                style={{ flex: 1, border: 0, minHeight: '70vh' }}
+              />
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '1.5rem',
+                  overflow: 'auto',
+                }}
+              >
+                <img
+                  src={quotation.fileUrl}
+                  alt={quotation.originalFileName ?? 'quotation file'}
+                  style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
+                />
+              </div>
+            )
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                padding: '3rem',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              <p style={{ margin: 0 }}>
+                This file type cannot be previewed inline.
+              </p>
+              <a
+                href={quotation.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary"
+              >
+                Open file
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function QuotationsScreen() {
   const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -24,6 +145,7 @@ export function QuotationsScreen() {
   const [supplierFilter, setSupplierFilter] = useState<number | ''>('');
   const [expiredFilter, setExpiredFilter] = useState<ExpiredFilter>('');
   const [usedFilter, setUsedFilter] = useState<UsedFilter>('');
+  const [searchText, setSearchText] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -31,6 +153,8 @@ export function QuotationsScreen() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [previewQuotation, setPreviewQuotation] = useState<QuotationSummary | null>(null);
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
@@ -64,6 +188,18 @@ export function QuotationsScreen() {
       .catch(() => setCurrencies([]));
   }, []);
 
+  const filtered = useMemo(() => {
+    if (!searchText.trim()) return quotations;
+    const term = searchText.toLowerCase();
+    return quotations.filter(
+      (q) =>
+        q.supplierName.toLowerCase().includes(term) ||
+        (q.description ?? '').toLowerCase().includes(term) ||
+        (q.quoteReference ?? '').toLowerCase().includes(term) ||
+        (q.notes ?? '').toLowerCase().includes(term),
+    );
+  }, [quotations, searchText]);
+
   const openCreate = () => {
     setFormError(null);
     setIsFormOpen(true);
@@ -87,10 +223,18 @@ export function QuotationsScreen() {
   };
 
   return (
-    <section className="admin-screen">
+    <section className="admin-screen admin-screen--wide">
       <div className="admin-header">
         <h2>Quotations</h2>
         <div className="admin-filters">
+          <input
+            type="search"
+            placeholder="Search supplier, reference, notes…"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ minWidth: '220px' }}
+          />
+
           <label htmlFor="quotation-supplier-filter">Supplier</label>
           <select
             id="quotation-supplier-filter"
@@ -139,13 +283,16 @@ export function QuotationsScreen() {
           <div className="admin-error" role="alert">
             {loadError}
           </div>
-        ) : quotations.length === 0 ? (
-          <div className="admin-empty">No quotations found.</div>
+        ) : filtered.length === 0 ? (
+          <div className="admin-empty">
+            {searchText && quotations.length > 0 ? 'No quotations match your search.' : 'No quotations found.'}
+          </div>
         ) : (
           <table className="admin-table">
             <thead>
               <tr>
                 <th>Supplier</th>
+                <th>Description</th>
                 <th>Reference</th>
                 <th>Quote date</th>
                 <th>Currency</th>
@@ -156,9 +303,10 @@ export function QuotationsScreen() {
               </tr>
             </thead>
             <tbody>
-              {quotations.map((q) => (
+              {filtered.map((q) => (
                 <tr key={q.id}>
                   <td>{q.supplierName}</td>
+                  <td>{q.description ?? '—'}</td>
                   <td>{q.quoteReference ?? '—'}</td>
                   <td>{formatDate(q.quoteDate)}</td>
                   <td>{q.currency}</td>
@@ -180,9 +328,17 @@ export function QuotationsScreen() {
                     </span>
                   </td>
                   <td>
-                    <a href={q.fileUrl} target="_blank" rel="noreferrer">
-                      {q.originalFileName ?? 'View file'}
-                    </a>
+                    {q.fileUrl ? (
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => setPreviewQuotation(q)}
+                      >
+                        Preview
+                      </button>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               ))}
@@ -199,6 +355,13 @@ export function QuotationsScreen() {
           error={formError}
           onSubmit={handleSubmit}
           onCancel={closeForm}
+        />
+      )}
+
+      {previewQuotation && (
+        <FilePreviewModal
+          quotation={previewQuotation}
+          onClose={() => setPreviewQuotation(null)}
         />
       )}
 

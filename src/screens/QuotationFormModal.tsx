@@ -42,6 +42,7 @@ export function QuotationFormModal({
 }: QuotationFormModalProps) {
   const [supplierId, setSupplierId] = useState(fixedSupplierId ? String(fixedSupplierId) : '');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [description, setDescription] = useState('');
   const [quoteReference, setQuoteReference] = useState('');
   const [quoteDate, setQuoteDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiresAt, setExpiresAt] = useState('');
@@ -114,6 +115,7 @@ export function QuotationFormModal({
     onSubmit({
       supplierId: Number(supplierId),
       fileId: uploadedFile.id,
+      description: description.trim() || null,
       quoteReference: quoteReference.trim() || null,
       quoteDate: quoteDateIso,
       expiresAtUtc: expiresAtIso,
@@ -180,6 +182,18 @@ export function QuotationFormModal({
             >
               Populate from file
             </button>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="quotation-description">Description</label>
+            <input
+              id="quotation-description"
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={isSaving}
+              placeholder="Brief description of what was quoted"
+            />
           </div>
 
           <div className="po-meta">

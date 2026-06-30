@@ -72,7 +72,7 @@ export function SupplierBidsScreen() {
   const pageBids = filteredBids.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <section className="admin-screen">
+    <section className="admin-screen admin-screen--wide">
       <div className="admin-header">
         <h2>Supplier Bids</h2>
         <div className="admin-filters">

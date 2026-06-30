@@ -5,6 +5,10 @@
   max-width: 1080px;
 }
 
+.admin-screen--wide {
+  max-width: none;
+}
+
 .admin-header {
   display: flex;
   align-items: center;

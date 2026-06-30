@@ -111,7 +111,7 @@ export function SuppliersScreen() {
   };
 
   return (
-    <section className="admin-screen">
+    <section className="admin-screen admin-screen--wide">
       <div className="admin-header">
         <h2>Suppliers</h2>
         <form className="admin-filters" onSubmit={handleSearchSubmit} role="search">

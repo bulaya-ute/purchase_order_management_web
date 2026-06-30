@@ -16,6 +16,7 @@ export interface Quotation {
   supplierId: number;
   supplierName: string;
   file: UploadedFile;
+  description: string | null;
   quoteReference: string | null;
   quoteDate: string;
   expiresAtUtc: string | null;
@@ -34,6 +35,7 @@ export interface QuotationSummary {
   fileId: number;
   fileUrl: string;
   originalFileName: string | null;
+  description: string | null;
   quoteReference: string | null;
   quoteDate: string;
   expiresAtUtc: string | null;
@@ -55,6 +57,7 @@ export interface CreateQuotationLineItemRequest {
 export interface CreateQuotationRequest {
   supplierId: number;
   fileId: number;
+  description?: string | null;
   quoteReference?: string | null;
   quoteDate: string;
   expiresAtUtc?: string | null;
