@@ -37,14 +37,14 @@ test('compose a bid-based PO end to end: bid -> quotation -> seed items -> award
 
   await login(page);
 
-  // PO list -> New PO -> create a Head Office/USD draft.
+  // PO list -> New PO -> create a Head Office/ZMW draft (ZMW is the only active currency seeded).
   await page.getByRole('link', { name: 'Purchase Orders' }).click();
   await expect(page).toHaveURL(/\/purchase-orders$/);
   await page.getByRole('link', { name: 'New PO' }).click();
   await expect(page).toHaveURL(/\/purchase-orders\/new$/);
 
   await page.selectOption('#po-company', { label: 'Head Office' });
-  await page.selectOption('#po-currency', 'USD');
+  await page.selectOption('#po-currency', 'ZMW');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/purchase-orders\/\d+\/edit$/);
   await expect(page.getByRole('heading', { name: /^PO-/ })).toBeVisible();

@@ -116,6 +116,7 @@ export function PurchaseOrdersScreen() {
                 <tr>
                   <th>PO number</th>
                   <th>Company</th>
+                  <th>For</th>
                   <th>Status</th>
                   <th>Total</th>
                   <th>Issuer</th>
@@ -130,6 +131,7 @@ export function PurchaseOrdersScreen() {
                       <Link to={`/purchase-orders/${po.id}`}>{po.poNumber}</Link>
                     </td>
                     <td>{po.companyName}</td>
+                    <td>{po.targetCompanyName ?? '—'}</td>
                     <td>
                       <StatusBadge status={po.status} />
                     </td>

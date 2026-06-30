@@ -15,8 +15,9 @@ async function seedSubmittedPo(api: APIRequestContext): Promise<number> {
   });
   expect(loginResp.ok(), `login failed: ${loginResp.status()}`).toBeTruthy();
 
+  // ZMW is the only active currency seeded — USD exists but is inactive and is rejected server-side.
   const createResp = await api.post('/api/purchase-orders', {
-    data: { companyId: 1, currency: 'USD' },
+    data: { companyId: 1, currency: 'ZMW' },
   });
   expect(createResp.ok(), `create PO failed: ${createResp.status()}`).toBeTruthy();
   const po = (await createResp.json()) as { id: number };

@@ -20,16 +20,20 @@ import { listUsers } from '../api/usersApi';
 import type { User } from '../api/usersApi';
 import { listRoles } from '../api/rolesApi';
 import type { Role } from '../api/rolesApi';
+import { listCurrencies } from '../api/currenciesApi';
+import type { Currency } from '../api/currenciesApi';
+import { getPurchaseOrderType, listPurchaseOrderTypes } from '../api/purchaseOrderTypesApi';
+import type { PurchaseOrderTypeDto } from '../api/purchaseOrderTypesApi';
 import { getErrorMessage } from '../api/errorMessage';
 import { BidManager } from '../components/BidManager';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatMoneyVector } from '../utils/format';
 import './admin/admin.css';
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'KES', 'ZAR', 'NGN'];
+const DEFAULT_CURRENCY_CODE = 'ZMW';
 
 interface LineItemFormState {
   description: string;
@@ -74,7 +78,11 @@ export function PurchaseOrderComposerScreen() {
   // ----- New PO header form -----
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState<string>('');
-  const [currency, setCurrency] = useState('USD');
+  const [targetCompanyId, setTargetCompanyId] = useState<string>('');
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [currency, setCurrency] = useState('');
+  const [poTypes, setPoTypes] = useState<PurchaseOrderTypeDto[]>([]);
+  const [purchaseOrderTypeId, setPurchaseOrderTypeId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -84,6 +92,16 @@ export function PurchaseOrderComposerScreen() {
     listAllCompanies()
       .then(setCompanies)
       .catch(() => setCompanies([]));
+    listCurrencies({ isActive: true })
+      .then((result) => {
+        setCurrencies(result);
+        const fallback = result.find((c) => c.code === DEFAULT_CURRENCY_CODE) ?? result[0];
+        if (fallback) setCurrency(fallback.code);
+      })
+      .catch(() => setCurrencies([]));
+    listPurchaseOrderTypes()
+      .then((result) => setPoTypes(result.filter((t) => t.isActive)))
+      .catch(() => setPoTypes([]));
   }, [isNew]);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -97,7 +115,9 @@ export function PurchaseOrderComposerScreen() {
     try {
       const created = await createPurchaseOrder({
         companyId: Number(companyId),
-        currency,
+        targetCompanyId: targetCompanyId ? Number(targetCompanyId) : null,
+        currency: currency || null,
+        purchaseOrderTypeId: purchaseOrderTypeId ? Number(purchaseOrderTypeId) : null,
         notes: notes.trim() || null,
       });
       navigate(`/purchase-orders/${created.id}/edit`, { replace: true });
@@ -144,6 +164,40 @@ export function PurchaseOrderComposerScreen() {
             </div>
 
             <div className="form-field">
+              <label htmlFor="po-target-company">Target branch (optional)</label>
+              <select
+                id="po-target-company"
+                value={targetCompanyId}
+                onChange={(e) => setTargetCompanyId(e.target.value)}
+                disabled={isCreating}
+              >
+                <option value="">None</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="po-type">Type (optional)</label>
+              <select
+                id="po-type"
+                value={purchaseOrderTypeId}
+                onChange={(e) => setPurchaseOrderTypeId(e.target.value)}
+                disabled={isCreating}
+              >
+                <option value="">None</option>
+                {poTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
               <label htmlFor="po-currency">Currency</label>
               <select
                 id="po-currency"
@@ -151,9 +205,9 @@ export function PurchaseOrderComposerScreen() {
                 onChange={(e) => setCurrency(e.target.value)}
                 disabled={isCreating}
               >
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {c.name}
                   </option>
                 ))}
               </select>
@@ -200,11 +254,18 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Header edit (notes/currency).
-  const [headerCurrency, setHeaderCurrency] = useState('USD');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+
+  // Header edit (notes/currency/target branch).
+  const [headerCurrency, setHeaderCurrency] = useState('');
+  const [headerTargetCompanyId, setHeaderTargetCompanyId] = useState('');
   const [headerNotes, setHeaderNotes] = useState('');
   const [isSavingHeader, setIsSavingHeader] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
+
+  // PO type's fixed approval steps (read-only), fetched when po.purchaseOrderTypeId is set.
+  const [poType, setPoType] = useState<PurchaseOrderTypeDto | null>(null);
 
   // Line items.
   const [lineForm, setLineForm] = useState<LineItemFormState>(EMPTY_LINE_ITEM_FORM);
@@ -234,6 +295,7 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
       const detail = await getPurchaseOrder(poId);
       setPo(detail);
       setHeaderCurrency(detail.currency);
+      setHeaderTargetCompanyId(detail.targetCompanyId != null ? String(detail.targetCompanyId) : '');
       setHeaderNotes(detail.notes ?? '');
     } catch (err) {
       setLoadError(getErrorMessage(err, 'Failed to load the purchase order.'));
@@ -269,7 +331,23 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
     listUsers({ page: 1, pageSize: 100 })
       .then((result) => setUsers(result.items))
       .catch(() => setUsers([]));
+    listAllCompanies()
+      .then(setCompanies)
+      .catch(() => setCompanies([]));
+    listCurrencies({ isActive: true })
+      .then(setCurrencies)
+      .catch(() => setCurrencies([]));
   }, []);
+
+  useEffect(() => {
+    if (po?.purchaseOrderTypeId == null) {
+      setPoType(null);
+      return;
+    }
+    getPurchaseOrderType(po.purchaseOrderTypeId)
+      .then(setPoType)
+      .catch(() => setPoType(null));
+  }, [po?.purchaseOrderTypeId]);
 
   if (isLoading) {
     return (
@@ -325,6 +403,7 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
     try {
       const updated = await updatePurchaseOrder(po.id, {
         currency: headerCurrency,
+        targetCompanyId: headerTargetCompanyId ? Number(headerTargetCompanyId) : null,
         notes: headerNotes.trim() || null,
         rowVersion: po.rowVersion,
       });
@@ -526,6 +605,23 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
           </div>
 
           <div className="form-field">
+            <label htmlFor="po-edit-target-company">Target branch (optional)</label>
+            <select
+              id="po-edit-target-company"
+              value={headerTargetCompanyId}
+              onChange={(e) => setHeaderTargetCompanyId(e.target.value)}
+              disabled={isSavingHeader}
+            >
+              <option value="">None</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-field">
             <label htmlFor="po-edit-currency">Currency</label>
             <select
               id="po-edit-currency"
@@ -533,9 +629,9 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
               onChange={(e) => setHeaderCurrency(e.target.value)}
               disabled={isSavingHeader}
             >
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
                 </option>
               ))}
             </select>
@@ -563,22 +659,33 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
       {/* Live totals */}
       <div className="admin-panel po-section" style={{ padding: '1rem' }}>
         <h3>Totals</h3>
-        <div className="po-totals">
-          <div className="po-total-item">
-            <span className="po-meta-label">Subtotal</span>
-            <span className="po-total-value">{formatMoney(po.subtotal, po.currency)}</span>
+        {po.hasMultiCurrencyTotals ? (
+          <div className="po-totals">
+            <div className="po-total-item po-total-grand">
+              <span className="po-meta-label">Total (by currency)</span>
+              <span className="po-total-value" data-testid="po-total">
+                {formatMoneyVector(po.totals)}
+              </span>
+            </div>
           </div>
-          <div className="po-total-item">
-            <span className="po-meta-label">Tax</span>
-            <span className="po-total-value">{formatMoney(po.taxAmount, po.currency)}</span>
+        ) : (
+          <div className="po-totals">
+            <div className="po-total-item">
+              <span className="po-meta-label">Subtotal</span>
+              <span className="po-total-value">{formatMoney(po.subtotal, po.currency)}</span>
+            </div>
+            <div className="po-total-item">
+              <span className="po-meta-label">Tax</span>
+              <span className="po-total-value">{formatMoney(po.taxAmount, po.currency)}</span>
+            </div>
+            <div className="po-total-item po-total-grand">
+              <span className="po-meta-label">Total</span>
+              <span className="po-total-value" data-testid="po-total">
+                {formatMoney(po.totalAmount, po.currency)}
+              </span>
+            </div>
           </div>
-          <div className="po-total-item po-total-grand">
-            <span className="po-meta-label">Total</span>
-            <span className="po-total-value" data-testid="po-total">
-              {formatMoney(po.totalAmount, po.currency)}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Line items (direct-entry) */}
@@ -733,7 +840,6 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
         </p>
         <BidManager
           purchaseOrderId={po.id}
-          currency={po.currency}
           awardedSupplierBidId={po.awardedSupplierBidId}
           onAwarded={() => void refreshSilently()}
         />
@@ -746,6 +852,49 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
           Same sequence number can be acted on in parallel; a higher sequence is blocked until all
           lower-sequence approvals are approved.
         </p>
+
+        {po.purchaseOrderTypeId != null && (
+          <>
+            <p className="form-hint">
+              This PO uses the <strong>{po.purchaseOrderTypeName}</strong> type — its approval
+              chain is fixed by the type and cannot be edited here.
+            </p>
+            {poType ? (
+              poType.approvalSteps.length === 0 ? (
+                <div className="admin-empty">This type defines no fixed approval steps.</div>
+              ) : (
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Target</th>
+                      <th>Sequence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {poType.approvalSteps.map((step) => (
+                      <tr key={step.id}>
+                        <td>
+                          {step.requiredUserName ??
+                            step.requiredRoleName ??
+                            (step.requiredUserId
+                              ? `User #${step.requiredUserId}`
+                              : step.requiredRoleId
+                                ? `Role #${step.requiredRoleId}`
+                                : '—')}
+                        </td>
+                        <td>{step.sequenceOrder}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : (
+              <div className="admin-loading">Loading fixed approval steps…</div>
+            )}
+          </>
+        )}
+
+        <h4 style={{ marginTop: '1rem' }}>Generated approvals (live status)</h4>
         {po.approvals.length === 0 ? (
           <div className="admin-empty">No approvals defined yet.</div>
         ) : (
@@ -755,7 +904,7 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
                 <th>Target</th>
                 <th>Sequence</th>
                 <th>Status</th>
-                <th aria-label="Actions" />
+                {po.purchaseOrderTypeId == null && <th aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -775,17 +924,19 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
                     <td>
                       <StatusBadge status={approval.status} />
                     </td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn btn-small btn-danger"
-                          onClick={() => setDeletingApproval(approval)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </td>
+                    {po.purchaseOrderTypeId == null && (
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-small btn-danger"
+                            onClick={() => setDeletingApproval(approval)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -793,89 +944,91 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
           </table>
         )}
 
-        <form className="admin-form" onSubmit={handleSubmitApproval} style={{ marginTop: '0.75rem' }}>
-          {approvalError && (
-            <div className="admin-error" role="alert">
-              {approvalError}
-            </div>
-          )}
-          <div className="po-meta">
-            <div className="form-field">
-              <label htmlFor="approval-target-kind">Target type</label>
-              <select
-                id="approval-target-kind"
-                value={approvalForm.targetKind}
-                onChange={(e) =>
-                  setApprovalForm((f) => ({
-                    ...f,
-                    targetKind: e.target.value as ApprovalTargetKind,
-                  }))
-                }
-                disabled={isSavingApproval}
-              >
-                <option value="role">Role</option>
-                <option value="user">Specific user</option>
-              </select>
-            </div>
-
-            {approvalForm.targetKind === 'role' ? (
-              <div className="form-field">
-                <label htmlFor="approval-role">Role</label>
-                <select
-                  id="approval-role"
-                  value={approvalForm.roleId}
-                  onChange={(e) => setApprovalForm((f) => ({ ...f, roleId: e.target.value }))}
-                  disabled={isSavingApproval}
-                >
-                  <option value="">Select a role…</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="form-field">
-                <label htmlFor="approval-user">User</label>
-                <select
-                  id="approval-user"
-                  value={approvalForm.userId}
-                  onChange={(e) => setApprovalForm((f) => ({ ...f, userId: e.target.value }))}
-                  disabled={isSavingApproval}
-                >
-                  <option value="">Select a user…</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.fullName}
-                    </option>
-                  ))}
-                </select>
+        {po.purchaseOrderTypeId == null && (
+          <form className="admin-form" onSubmit={handleSubmitApproval} style={{ marginTop: '0.75rem' }}>
+            {approvalError && (
+              <div className="admin-error" role="alert">
+                {approvalError}
               </div>
             )}
+            <div className="po-meta">
+              <div className="form-field">
+                <label htmlFor="approval-target-kind">Target type</label>
+                <select
+                  id="approval-target-kind"
+                  value={approvalForm.targetKind}
+                  onChange={(e) =>
+                    setApprovalForm((f) => ({
+                      ...f,
+                      targetKind: e.target.value as ApprovalTargetKind,
+                    }))
+                  }
+                  disabled={isSavingApproval}
+                >
+                  <option value="role">Role</option>
+                  <option value="user">Specific user</option>
+                </select>
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="approval-sequence">Sequence order</label>
-              <input
-                id="approval-sequence"
-                type="number"
-                min="0"
-                step="1"
-                value={approvalForm.sequenceOrder}
-                onChange={(e) =>
-                  setApprovalForm((f) => ({ ...f, sequenceOrder: e.target.value }))
-                }
-                disabled={isSavingApproval}
-              />
+              {approvalForm.targetKind === 'role' ? (
+                <div className="form-field">
+                  <label htmlFor="approval-role">Role</label>
+                  <select
+                    id="approval-role"
+                    value={approvalForm.roleId}
+                    onChange={(e) => setApprovalForm((f) => ({ ...f, roleId: e.target.value }))}
+                    disabled={isSavingApproval}
+                  >
+                    <option value="">Select a role…</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="form-field">
+                  <label htmlFor="approval-user">User</label>
+                  <select
+                    id="approval-user"
+                    value={approvalForm.userId}
+                    onChange={(e) => setApprovalForm((f) => ({ ...f, userId: e.target.value }))}
+                    disabled={isSavingApproval}
+                  >
+                    <option value="">Select a user…</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="form-field">
+                <label htmlFor="approval-sequence">Sequence order</label>
+                <input
+                  id="approval-sequence"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={approvalForm.sequenceOrder}
+                  onChange={(e) =>
+                    setApprovalForm((f) => ({ ...f, sequenceOrder: e.target.value }))
+                  }
+                  disabled={isSavingApproval}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-            <button type="submit" className="btn btn-primary" disabled={isSavingApproval}>
-              {isSavingApproval ? 'Adding…' : 'Add approval'}
-            </button>
-          </div>
-        </form>
+            <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+              <button type="submit" className="btn btn-primary" disabled={isSavingApproval}>
+                {isSavingApproval ? 'Adding…' : 'Add approval'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Submit */}

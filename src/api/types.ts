@@ -1,3 +1,15 @@
+/**
+ * Mirrors PurchaseOrderManagement.Api.Dtos.Common.CurrencyTotalDto. One currency's aggregate
+ * within a money vector (SupplierBidDto.Totals, PurchaseOrderDto.Totals) — never combined or
+ * converted across currencies; one row per currency present among the underlying line items.
+ */
+export interface CurrencyTotal {
+  currency: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+}
+
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Common.PagedResult<T>. Page is 1-based. */
 export interface PagedResult<T> {
   items: T[];

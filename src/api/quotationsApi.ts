@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { buildQueryString } from './types';
 import type { UploadedFile } from './filesApi';
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationLineItemDto. */
@@ -9,23 +10,27 @@ export interface QuotationLineItem {
   unitCost: number;
 }
 
-/** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationDto. */
+/** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationDto (full quotation detail). */
 export interface Quotation {
   id: number;
-  supplierBidId: number;
+  supplierId: number;
+  supplierName: string;
   file: UploadedFile;
   quoteReference: string | null;
   quoteDate: string;
   expiresAtUtc: string | null;
   isExpired: boolean;
+  currency: string;
   notes: string | null;
+  isUsed: boolean;
   lineItems: QuotationLineItem[];
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationSummaryDto. */
 export interface QuotationSummary {
   id: number;
-  supplierBidId: number;
+  supplierId: number;
+  supplierName: string;
   fileId: number;
   fileUrl: string;
   originalFileName: string | null;
@@ -33,8 +38,10 @@ export interface QuotationSummary {
   quoteDate: string;
   expiresAtUtc: string | null;
   isExpired: boolean;
+  currency: string;
   notes: string | null;
   lineItemCount: number;
+  isUsed: boolean;
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.CreateQuotationLineItemRequest. */
@@ -46,25 +53,31 @@ export interface CreateQuotationLineItemRequest {
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.CreateQuotationRequest. */
 export interface CreateQuotationRequest {
+  supplierId: number;
   fileId: number;
   quoteReference?: string | null;
   quoteDate: string;
   expiresAtUtc?: string | null;
+  currency: string;
   notes?: string | null;
   lineItems: CreateQuotationLineItemRequest[];
 }
 
-export function listQuotations(supplierBidId: number): Promise<QuotationSummary[]> {
-  return apiClient.get<QuotationSummary[]>(`/supplier-bids/${supplierBidId}/quotations`);
+/** Mirrors the QuotationsController query string (supplierId/isExpired/isUsed all optional). */
+export interface QuotationListQuery {
+  supplierId?: number;
+  isExpired?: boolean;
+  isUsed?: boolean;
 }
 
-export function getQuotation(supplierBidId: number, quotationId: number): Promise<Quotation> {
-  return apiClient.get<Quotation>(`/supplier-bids/${supplierBidId}/quotations/${quotationId}`);
+export function listQuotations(query: QuotationListQuery = {}): Promise<QuotationSummary[]> {
+  return apiClient.get<QuotationSummary[]>(`/quotations${buildQueryString(query)}`);
 }
 
-export function createQuotation(
-  supplierBidId: number,
-  request: CreateQuotationRequest,
-): Promise<Quotation> {
-  return apiClient.post<Quotation>(`/supplier-bids/${supplierBidId}/quotations`, request);
+export function getQuotation(quotationId: number): Promise<Quotation> {
+  return apiClient.get<Quotation>(`/quotations/${quotationId}`);
+}
+
+export function createQuotation(request: CreateQuotationRequest): Promise<Quotation> {
+  return apiClient.post<Quotation>('/quotations', request);
 }

@@ -12,9 +12,10 @@ test('compose a direct-entry PO end to end: draft -> lines -> approval -> submit
   await page.getByRole('link', { name: 'New PO' }).click();
   await expect(page).toHaveURL(/\/purchase-orders\/new$/);
 
-  // Header: company "Head Office", currency USD, then create the draft.
+  // Header: company "Head Office", currency ZMW (the only active currency seeded), then create
+  // the draft.
   await page.selectOption('#po-company', { label: 'Head Office' });
-  await page.selectOption('#po-currency', 'USD');
+  await page.selectOption('#po-currency', 'ZMW');
   await page.getByRole('button', { name: 'Create draft' }).click();
 
   // Redirected to /purchase-orders/:id/edit once the draft exists.

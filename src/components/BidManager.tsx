@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   addBidItem,
+  attachBidToPurchaseOrder,
   createBid,
   deleteBidItem,
   getBid,
+  listBids,
   listBidsForPurchaseOrder,
   seedBidItemsFromQuotation,
   updateBidItem,
@@ -15,6 +17,8 @@ import type { CreateQuotationLineItemRequest, QuotationSummary } from '../api/qu
 import { setAwardedBid } from '../api/purchaseOrdersApi';
 import { listSuppliers } from '../api/suppliersApi';
 import type { Supplier } from '../api/suppliersApi';
+import { listCurrencies } from '../api/currenciesApi';
+import type { Currency } from '../api/currenciesApi';
 import { getErrorMessage } from '../api/errorMessage';
 import { BidCard } from './BidCard';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -22,11 +26,10 @@ import { FileUpload } from './FileUpload';
 import type { UploadedFile } from '../api/filesApi';
 import { Toast } from './Toast';
 import type { ToastMessage } from './Toast';
-import { formatDate, formatMoney } from '../utils/format';
+import { formatDate, formatMoney, formatMoneyVector } from '../utils/format';
 
 interface BidManagerProps {
   purchaseOrderId: number;
-  currency: string;
   awardedSupplierBidId: number | null;
   /** Called after an award succeeds so the parent can refresh the PO (awardedSupplierBidId etc). */
   onAwarded: () => void;
@@ -36,17 +39,19 @@ interface BidItemFormState {
   description: string;
   quantity: string;
   unitCost: string;
+  currency: string;
   discountPercentage: string;
   taxPercentage: string;
 }
 
-const EMPTY_BID_ITEM_FORM: BidItemFormState = {
+const emptyBidItemForm = (currency: string): BidItemFormState => ({
   description: '',
   quantity: '',
   unitCost: '',
+  currency,
   discountPercentage: '',
   taxPercentage: '',
-};
+});
 
 interface QuotationLineFormRow {
   description: string;
@@ -57,16 +62,12 @@ interface QuotationLineFormRow {
 const EMPTY_QUOTATION_LINE: QuotationLineFormRow = { description: '', quantity: '', unitCost: '' };
 
 /**
- * Bid-based composition manager for the PO composer: add competing supplier bids, drill into a
- * bid to manage its quotations + editable bid items, and select the winning bid. Only meaningful
- * while the PO is Draft (the composer only renders this while isDraft is true).
+ * Bid-based composition manager for the PO composer: add competing supplier bids (either created
+ * fresh or attached from the standalone bids library), drill into a bid to manage its quotations +
+ * editable bid items, and select the winning bid. Only meaningful while the PO is Draft (the
+ * composer only renders this while isDraft is true).
  */
-export function BidManager({
-  purchaseOrderId,
-  currency,
-  awardedSupplierBidId,
-  onAwarded,
-}: BidManagerProps) {
+export function BidManager({ purchaseOrderId, awardedSupplierBidId, onAwarded }: BidManagerProps) {
   const [bids, setBids] = useState<SupplierBidSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -77,6 +78,14 @@ export function BidManager({
   const [newBidNotes, setNewBidNotes] = useState('');
   const [isCreatingBid, setIsCreatingBid] = useState(false);
   const [createBidError, setCreateBidError] = useState<string | null>(null);
+
+  // Attach-existing-bid control.
+  const [unattachedBids, setUnattachedBids] = useState<SupplierBidSummary[]>([]);
+  const [isLoadingUnattached, setIsLoadingUnattached] = useState(false);
+  const [attachSupplierId, setAttachSupplierId] = useState('');
+  const [attachBidId, setAttachBidId] = useState('');
+  const [isAttaching, setIsAttaching] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
 
   const [openBidId, setOpenBidId] = useState<number | null>(null);
 
@@ -93,9 +102,28 @@ export function BidManager({
     }
   }, [purchaseOrderId]);
 
+  const loadUnattached = useCallback(async () => {
+    setIsLoadingUnattached(true);
+    try {
+      const result = await listBids({
+        unattachedOnly: true,
+        supplierId: attachSupplierId ? Number(attachSupplierId) : undefined,
+      });
+      setUnattachedBids(result);
+    } catch {
+      setUnattachedBids([]);
+    } finally {
+      setIsLoadingUnattached(false);
+    }
+  }, [attachSupplierId]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadUnattached();
+  }, [loadUnattached]);
 
   useEffect(() => {
     listSuppliers({ page: 1, pageSize: 200 })
@@ -120,11 +148,33 @@ export function BidManager({
       setNewBidSupplierId('');
       setNewBidNotes('');
       await load();
+      await loadUnattached();
       setOpenBidId(created.id);
     } catch (err) {
       setCreateBidError(getErrorMessage(err, 'Failed to add the bid.'));
     } finally {
       setIsCreatingBid(false);
+    }
+  };
+
+  const handleAttachBid = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!attachBidId) {
+      setAttachError('Choose a bid to attach.');
+      return;
+    }
+    setIsAttaching(true);
+    setAttachError(null);
+    try {
+      await attachBidToPurchaseOrder(Number(attachBidId), purchaseOrderId);
+      setToast({ kind: 'success', text: 'Bid attached.' });
+      setAttachBidId('');
+      await load();
+      await loadUnattached();
+    } catch (err) {
+      setAttachError(getErrorMessage(err, 'Failed to attach the bid.'));
+    } finally {
+      setIsAttaching(false);
     }
   };
 
@@ -150,14 +200,13 @@ export function BidManager({
       {isLoading ? (
         <div className="admin-loading">Loading bids…</div>
       ) : bids.length === 0 ? (
-        <div className="admin-empty">No supplier bids yet. Add one below.</div>
+        <div className="admin-empty">No supplier bids yet. Add or attach one below.</div>
       ) : (
         <div className="bid-card-grid">
           {bids.map((bid) => (
             <BidCard
               key={bid.id}
               bid={bid}
-              currency={currency}
               isAwarded={bid.id === awardedSupplierBidId}
               onClick={() => setOpenBidId(bid.id)}
             />
@@ -165,17 +214,15 @@ export function BidManager({
         </div>
       )}
 
-      <form
-        className="admin-form"
-        onSubmit={handleCreateBid}
-        style={{ marginTop: '0.75rem' }}
-      >
-        {createBidError && (
-          <div className="admin-error" role="alert">
-            {createBidError}
-          </div>
-        )}
-        <div className="po-meta">
+      <div className="po-meta" style={{ marginTop: '0.75rem', alignItems: 'flex-start' }}>
+        {/* + New Bid shortcut */}
+        <form className="admin-form" onSubmit={handleCreateBid} style={{ flex: '1 1 280px' }}>
+          <h4 style={{ marginTop: 0 }}>+ New bid</h4>
+          {createBidError && (
+            <div className="admin-error" role="alert">
+              {createBidError}
+            </div>
+          )}
           <div className="form-field">
             <label htmlFor="bid-supplier">Supplier</label>
             <select
@@ -202,18 +249,69 @@ export function BidManager({
               disabled={isCreatingBid}
             />
           </div>
-        </div>
-        <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-          <button type="submit" className="btn btn-primary" disabled={isCreatingBid}>
-            {isCreatingBid ? 'Adding…' : 'Add bid'}
-          </button>
-        </div>
-      </form>
+          <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+            <button type="submit" className="btn btn-primary" disabled={isCreatingBid}>
+              {isCreatingBid ? 'Adding…' : 'Add bid'}
+            </button>
+          </div>
+        </form>
+
+        {/* Attach existing bid */}
+        <form className="admin-form" onSubmit={handleAttachBid} style={{ flex: '1 1 280px' }}>
+          <h4 style={{ marginTop: 0 }}>Attach existing bid</h4>
+          {attachError && (
+            <div className="admin-error" role="alert">
+              {attachError}
+            </div>
+          )}
+          <div className="form-field">
+            <label htmlFor="attach-bid-supplier">Supplier</label>
+            <select
+              id="attach-bid-supplier"
+              value={attachSupplierId}
+              onChange={(e) => {
+                setAttachSupplierId(e.target.value);
+                setAttachBidId('');
+              }}
+              disabled={isAttaching}
+            >
+              <option value="">All suppliers</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.supplierName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-field">
+            <label htmlFor="attach-bid-id">Unattached bid</label>
+            <select
+              id="attach-bid-id"
+              value={attachBidId}
+              onChange={(e) => setAttachBidId(e.target.value)}
+              disabled={isAttaching || isLoadingUnattached}
+            >
+              <option value="">
+                {isLoadingUnattached ? 'Loading…' : 'Select an unattached bid…'}
+              </option>
+              {unattachedBids.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.supplierName} — {formatMoneyVector(b.totals)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+            <button type="submit" className="btn btn-secondary" disabled={isAttaching}>
+              {isAttaching ? 'Attaching…' : 'Attach bid'}
+            </button>
+          </div>
+        </form>
+      </div>
 
       {openBidId !== null && (
         <BidPreview
           bidId={openBidId}
-          currency={currency}
           isAwarded={openBidId === awardedSupplierBidId}
           onAward={() => void handleAward(openBidId)}
           onClose={() => setOpenBidId(null)}
@@ -230,7 +328,6 @@ export function BidManager({
 
 interface BidPreviewProps {
   bidId: number;
-  currency: string;
   isAwarded: boolean;
   onAward: () => void;
   onClose: () => void;
@@ -238,16 +335,20 @@ interface BidPreviewProps {
   onChanged: () => void;
 }
 
-function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }: BidPreviewProps) {
+function BidPreview({ bidId, isAwarded, onAward, onClose, onChanged }: BidPreviewProps) {
   const [bid, setBid] = useState<SupplierBidDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+
+  // All of this supplier's quotations (not just ones tied to this bid) — a bid can source lines
+  // from any quotation captured for that supplier.
   const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(true);
 
-  const [itemForm, setItemForm] = useState<BidItemFormState>(EMPTY_BID_ITEM_FORM);
+  const [itemForm, setItemForm] = useState<BidItemFormState>(emptyBidItemForm(''));
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [itemError, setItemError] = useState<string | null>(null);
   const [isSavingItem, setIsSavingItem] = useState(false);
@@ -258,6 +359,15 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
   const [showStubModal, setShowStubModal] = useState(false);
   const [lastQuotationId, setLastQuotationId] = useState<number | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
+
+  useEffect(() => {
+    listCurrencies({ isActive: true })
+      .then((result) => {
+        setCurrencies(result);
+        setItemForm((f) => (f.currency ? f : emptyBidItemForm(result[0]?.code ?? '')));
+      })
+      .catch(() => setCurrencies([]));
+  }, []);
 
   const loadBid = useCallback(async () => {
     setIsLoading(true);
@@ -272,25 +382,31 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
     }
   }, [bidId]);
 
-  const loadQuotations = useCallback(async () => {
+  useEffect(() => {
+    void loadBid();
+  }, [loadBid]);
+
+  const loadQuotations = useCallback(async (supplierId: number) => {
     setIsLoadingQuotations(true);
     try {
-      const result = await listQuotations(bidId);
+      const result = await listQuotations({ supplierId });
       setQuotations(result);
     } catch {
       setQuotations([]);
     } finally {
       setIsLoadingQuotations(false);
     }
-  }, [bidId]);
+  }, []);
 
+  const bidSupplierId = bid?.supplierId;
   useEffect(() => {
-    void loadBid();
-    void loadQuotations();
-  }, [loadBid, loadQuotations]);
+    if (bidSupplierId !== undefined) {
+      void loadQuotations(bidSupplierId);
+    }
+  }, [bidSupplierId, loadQuotations]);
 
   const resetItemForm = () => {
-    setItemForm(EMPTY_BID_ITEM_FORM);
+    setItemForm(emptyBidItemForm(currencies[0]?.code ?? ''));
     setEditingItemId(null);
     setItemError(null);
   };
@@ -301,6 +417,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
       description: item.description,
       quantity: String(item.quantity),
       unitCost: String(item.unitCost),
+      currency: item.currency,
       discountPercentage: item.discountPercentage != null ? String(item.discountPercentage) : '',
       taxPercentage: item.taxPercentage != null ? String(item.taxPercentage) : '',
     });
@@ -329,6 +446,10 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
       setItemError('Unit cost must be 0 or more.');
       return;
     }
+    if (!itemForm.currency) {
+      setItemError('Currency is required.');
+      return;
+    }
 
     setIsSavingItem(true);
     setItemError(null);
@@ -339,6 +460,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
           description,
           quantity,
           unitCost,
+          currency: itemForm.currency,
           discountPercentage,
           taxPercentage,
           rowVersion: existing?.rowVersion,
@@ -349,6 +471,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
           description,
           quantity,
           unitCost,
+          currency: itemForm.currency,
           discountPercentage,
           taxPercentage,
         });
@@ -384,7 +507,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
   const handleQuotationSaved = (quotationId: number) => {
     setLastQuotationId(quotationId);
     setShowQuotationForm(false);
-    void loadQuotations();
+    if (bid) void loadQuotations(bid.supplierId);
     onChanged();
   };
 
@@ -423,7 +546,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
             <div className="po-meta" style={{ marginBottom: '0.5rem' }}>
               <div className="po-meta-item">
                 <span className="po-meta-label">Bid total</span>
-                <span className="po-total-value">{formatMoney(bid.bidTotal, currency)}</span>
+                <span className="po-total-value">{formatMoneyVector(bid.totals)}</span>
               </div>
               <div className="po-meta-item">
                 <span className="po-meta-label">Items</span>
@@ -455,10 +578,12 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
                     <tr key={item.id}>
                       <td>{item.description}</td>
                       <td>{item.quantity}</td>
-                      <td>{formatMoney(item.unitCost, currency)}</td>
-                      <td>{formatMoney(item.discountAmount, currency)}</td>
-                      <td>{formatMoney(item.taxAmount, currency)}</td>
-                      <td data-testid="bid-item-line-total">{formatMoney(item.lineTotal, currency)}</td>
+                      <td>{formatMoney(item.unitCost, item.currency)}</td>
+                      <td>{formatMoney(item.discountAmount, item.currency)}</td>
+                      <td>{formatMoney(item.taxAmount, item.currency)}</td>
+                      <td data-testid="bid-item-line-total">
+                        {formatMoney(item.lineTotal, item.currency)}
+                      </td>
                       <td>
                         <div className="row-actions">
                           <button
@@ -525,6 +650,21 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
                   />
                 </div>
                 <div className="form-field">
+                  <label htmlFor="bid-item-currency">Currency</label>
+                  <select
+                    id="bid-item-currency"
+                    value={itemForm.currency}
+                    onChange={(e) => setItemForm((f) => ({ ...f, currency: e.target.value }))}
+                    disabled={isSavingItem}
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} — {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-field">
                   <label htmlFor="bid-item-discount">Discount %</label>
                   <input
                     id="bid-item-discount"
@@ -574,18 +714,20 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
               </div>
             </form>
 
-            {/* Quotations */}
-            <h4 style={{ marginTop: '1rem' }}>Quotations</h4>
+            {/* Quotations — all of this supplier's quotations, since a bid can source lines from
+                any of them (not just ones captured specifically for this bid). */}
+            <h4 style={{ marginTop: '1rem' }}>Supplier quotations</h4>
             {isLoadingQuotations ? (
               <div className="admin-loading">Loading quotations…</div>
             ) : quotations.length === 0 ? (
-              <div className="admin-empty">No quotations captured yet.</div>
+              <div className="admin-empty">No quotations captured for this supplier yet.</div>
             ) : (
               <table className="admin-table">
                 <thead>
                   <tr>
                     <th>Reference</th>
                     <th>Quote date</th>
+                    <th>Currency</th>
                     <th>Expiry</th>
                     <th>Lines</th>
                     <th>File</th>
@@ -597,6 +739,7 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
                     <tr key={q.id}>
                       <td>{q.quoteReference ?? '—'}</td>
                       <td>{formatDate(q.quoteDate)}</td>
+                      <td>{q.currency}</td>
                       <td>
                         {q.expiresAtUtc ? (
                           q.isExpired ? (
@@ -646,7 +789,8 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
               </div>
             ) : (
               <QuotationCaptureForm
-                bidId={bidId}
+                supplierId={bid.supplierId}
+                currencies={currencies}
                 onSaved={handleQuotationSaved}
                 onCancel={() => setShowQuotationForm(false)}
                 onStub={() => setShowStubModal(true)}
@@ -711,21 +855,35 @@ function BidPreview({ bidId, currency, isAwarded, onAward, onClose, onChanged }:
 }
 
 interface QuotationCaptureFormProps {
-  bidId: number;
+  supplierId: number;
+  currencies: Currency[];
   onSaved: (quotationId: number) => void;
   onCancel: () => void;
   onStub: () => void;
 }
 
-function QuotationCaptureForm({ bidId, onSaved, onCancel, onStub }: QuotationCaptureFormProps) {
+function QuotationCaptureForm({
+  supplierId,
+  currencies,
+  onSaved,
+  onCancel,
+  onStub,
+}: QuotationCaptureFormProps) {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [quoteReference, setQuoteReference] = useState('');
   const [quoteDate, setQuoteDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiresAt, setExpiresAt] = useState('');
+  const [currency, setCurrency] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<QuotationLineFormRow[]>([{ ...EMPTY_QUOTATION_LINE }]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!currency && currencies.length > 0) {
+      setCurrency(currencies[0].code);
+    }
+  }, [currencies, currency]);
 
   const updateLine = (index: number, patch: Partial<QuotationLineFormRow>) => {
     setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -744,6 +902,10 @@ function QuotationCaptureForm({ bidId, onSaved, onCancel, onStub }: QuotationCap
     }
     if (!quoteDate) {
       setError('Quote date is required.');
+      return;
+    }
+    if (!currency) {
+      setError('Currency is required.');
       return;
     }
 
@@ -776,11 +938,13 @@ function QuotationCaptureForm({ bidId, onSaved, onCancel, onStub }: QuotationCap
       const expiresAtIso = expiresAt
         ? new Date(`${expiresAt}T00:00:00.000Z`).toISOString()
         : null;
-      const created = await createQuotation(bidId, {
+      const created = await createQuotation({
+        supplierId,
         fileId: uploadedFile.id,
         quoteReference: quoteReference.trim() || null,
         quoteDate: quoteDateIso,
         expiresAtUtc: expiresAtIso,
+        currency,
         notes: notes.trim() || null,
         lineItems,
       });
@@ -851,6 +1015,21 @@ function QuotationCaptureForm({ bidId, onSaved, onCancel, onStub }: QuotationCap
             onChange={(e) => setExpiresAt(e.target.value)}
             disabled={isSaving}
           />
+        </div>
+        <div className="form-field">
+          <label htmlFor="quotation-currency">Currency</label>
+          <select
+            id="quotation-currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            disabled={isSaving}
+          >
+            {currencies.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

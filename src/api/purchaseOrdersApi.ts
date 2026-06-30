@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import { buildQueryString } from './types';
-import type { PagedQuery, PagedResult } from './types';
+import type { CurrencyTotal, PagedQuery, PagedResult } from './types';
 import type { ApprovalDto } from './approvalsApi';
 import type { SupplierBidSummary } from './bidsApi';
 
@@ -9,13 +9,19 @@ export type { SupplierBidSummary } from './bidsApi';
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.CreatePurchaseOrderRequest. */
 export interface CreatePurchaseOrderRequest {
   companyId: number;
-  currency: string;
+  /** Who the purchase is for (a branch/company), distinct from companyId. Optional. */
+  targetCompanyId?: number | null;
+  /** Optional — defaults to "ZMW" server-side when omitted. */
+  currency?: string | null;
+  /** Optional: creates the PO from an admin-defined type preset (fixed approval chain, restricted creator roles). */
+  purchaseOrderTypeId?: number | null;
   notes?: string | null;
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.UpdatePurchaseOrderRequest. */
 export interface UpdatePurchaseOrderRequest {
   currency: string;
+  targetCompanyId?: number | null;
   notes?: string | null;
   rowVersion?: string | null;
 }
@@ -55,6 +61,8 @@ export interface PurchaseOrderSummary {
   poNumber: string;
   companyId: number;
   companyName: string;
+  targetCompanyId: number | null;
+  targetCompanyName: string | null;
   issuerUserId: number;
   issuerUserName: string;
   currency: string;
@@ -73,6 +81,7 @@ export interface PurchaseOrderLineItem {
   description: string;
   quantity: number;
   unitCost: number;
+  currency: string;
   discountPercentage: number | null;
   discountAmount: number;
   taxPercentage: number | null;
@@ -88,19 +97,27 @@ export interface PurchaseOrderDetail {
   poNumber: string;
   companyId: number;
   companyName: string;
+  targetCompanyId: number | null;
+  targetCompanyName: string | null;
   issuerUserId: number;
   issuerUserName: string;
   currency: string;
   status: PurchaseOrderStatus;
   notes: string | null;
+  purchaseOrderTypeId: number | null;
+  purchaseOrderTypeName: string | null;
   awardedSupplierBidId: number | null;
   awardedAtUtc: string | null;
   awardedByUserId: number | null;
   paidAtUtc: string | null;
   deliveredAtUtc: string | null;
+  /** Authoritative only for direct-entry POs / single-currency bid-based POs — see hasMultiCurrencyTotals. */
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  /** True when totals must be read from `totals` instead of the flat subtotal/taxAmount/totalAmount fields. */
+  hasMultiCurrencyTotals: boolean;
+  totals: CurrencyTotal[];
   createdAtUtc: string;
   lineItems: PurchaseOrderLineItem[];
   approvals: ApprovalDto[];

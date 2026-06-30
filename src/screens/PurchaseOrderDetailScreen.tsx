@@ -19,7 +19,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
-import { formatDate, formatMoney } from '../utils/format';
+import { formatDate, formatMoney, formatMoneyVector } from '../utils/format';
 import './admin/admin.css';
 
 export function PurchaseOrderDetailScreen() {
@@ -155,6 +155,9 @@ export function PurchaseOrderDetailScreen() {
       <div className="po-detail-header">
         <h2>{po.poNumber}</h2>
         <StatusBadge status={po.status} />
+        <Link to={`/purchase-orders/${po.id}/print`} className="btn btn-secondary">
+          Print / Export PDF
+        </Link>
       </div>
 
       <div className="admin-panel" style={{ padding: '1rem' }}>
@@ -171,6 +174,18 @@ export function PurchaseOrderDetailScreen() {
             <span className="po-meta-label">Currency</span>
             <span>{po.currency}</span>
           </div>
+          {po.targetCompanyName && (
+            <div className="po-meta-item">
+              <span className="po-meta-label">For</span>
+              <span>{po.targetCompanyName}</span>
+            </div>
+          )}
+          {po.purchaseOrderTypeName && (
+            <div className="po-meta-item">
+              <span className="po-meta-label">Type</span>
+              <span>{po.purchaseOrderTypeName}</span>
+            </div>
+          )}
           <div className="po-meta-item">
             <span className="po-meta-label">Created</span>
             <span>{formatDate(po.createdAtUtc)}</span>
@@ -190,22 +205,33 @@ export function PurchaseOrderDetailScreen() {
       {/* Totals */}
       <div className="admin-panel po-section" style={{ padding: '1rem' }}>
         <h3>Totals</h3>
-        <div className="po-totals">
-          <div className="po-total-item">
-            <span className="po-meta-label">Subtotal</span>
-            <span className="po-total-value">{formatMoney(po.subtotal, po.currency)}</span>
+        {po.hasMultiCurrencyTotals ? (
+          <div className="po-totals">
+            <div className="po-total-item po-total-grand">
+              <span className="po-meta-label">Total (by currency)</span>
+              <span className="po-total-value" data-testid="po-total">
+                {formatMoneyVector(po.totals)}
+              </span>
+            </div>
           </div>
-          <div className="po-total-item">
-            <span className="po-meta-label">Tax</span>
-            <span className="po-total-value">{formatMoney(po.taxAmount, po.currency)}</span>
+        ) : (
+          <div className="po-totals">
+            <div className="po-total-item">
+              <span className="po-meta-label">Subtotal</span>
+              <span className="po-total-value">{formatMoney(po.subtotal, po.currency)}</span>
+            </div>
+            <div className="po-total-item">
+              <span className="po-meta-label">Tax</span>
+              <span className="po-total-value">{formatMoney(po.taxAmount, po.currency)}</span>
+            </div>
+            <div className="po-total-item po-total-grand">
+              <span className="po-meta-label">Total</span>
+              <span className="po-total-value" data-testid="po-total">
+                {formatMoney(po.totalAmount, po.currency)}
+              </span>
+            </div>
           </div>
-          <div className="po-total-item po-total-grand">
-            <span className="po-meta-label">Total</span>
-            <span className="po-total-value" data-testid="po-total">
-              {formatMoney(po.totalAmount, po.currency)}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -264,7 +290,6 @@ export function PurchaseOrderDetailScreen() {
               <BidCard
                 key={bid.id}
                 bid={bid}
-                currency={po.currency}
                 isAwarded={bid.id === po.awardedSupplierBidId}
               />
             ))}

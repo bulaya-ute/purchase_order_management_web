@@ -1,13 +1,17 @@
 import { apiClient } from './client';
+import { buildQueryString } from './types';
+import type { CurrencyTotal } from './types';
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.SupplierBids.SupplierBidSummaryDto. */
 export interface SupplierBidSummary {
   id: number;
-  purchaseOrderId: number;
+  /** Null = standalone/unattached bid (not yet attached to a PO). */
+  purchaseOrderId: number | null;
   supplierId: number;
   supplierName: string;
   notes: string | null;
-  bidTotal: number;
+  /** Per-currency totals across the bid's items. Never converted/combined. */
+  totals: CurrencyTotal[];
   itemCount: number;
   quotationCount: number;
   hasExpiredQuotation: boolean;
@@ -22,6 +26,7 @@ export interface SupplierBidItem {
   description: string;
   quantity: number;
   unitCost: number;
+  currency: string;
   discountPercentage: number | null;
   discountAmount: number;
   taxPercentage: number | null;
@@ -34,11 +39,11 @@ export interface SupplierBidItem {
 /** Mirrors PurchaseOrderManagement.Api.Dtos.SupplierBids.SupplierBidDto (full bid detail). */
 export interface SupplierBidDetail {
   id: number;
-  purchaseOrderId: number;
+  purchaseOrderId: number | null;
   supplierId: number;
   supplierName: string;
   notes: string | null;
-  bidTotal: number;
+  totals: CurrencyTotal[];
   itemCount: number;
   items: SupplierBidItem[];
   rowVersion: string;
@@ -55,6 +60,8 @@ export interface CreateSupplierBidItemRequest {
   description: string;
   quantity: number;
   unitCost: number;
+  /** Optional when sourceQuotationLineItemId is set (defaults from that quotation's currency); required otherwise. */
+  currency?: string | null;
   discountPercentage?: number | null;
   taxPercentage?: number | null;
   sourceQuotationLineItemId?: number | null;
@@ -65,6 +72,7 @@ export interface UpdateSupplierBidItemRequest {
   description: string;
   quantity: number;
   unitCost: number;
+  currency: string;
   discountPercentage?: number | null;
   taxPercentage?: number | null;
   rowVersion?: string | null;
@@ -75,15 +83,43 @@ export interface SeedBidItemsFromQuotationRequest {
   quotationId: number;
 }
 
+/** Mirrors the BidsController list query string (api/supplier-bids). */
+export interface SupplierBidListQuery {
+  supplierId?: number;
+  purchaseOrderId?: number;
+  unattachedOnly?: boolean;
+}
+
+/** Standalone bids library listing — optionally filtered by supplier/PO/unattached-only. */
+export function listBids(query: SupplierBidListQuery = {}): Promise<SupplierBidSummary[]> {
+  return apiClient.get<SupplierBidSummary[]>(`/supplier-bids${buildQueryString(query)}`);
+}
+
 export function listBidsForPurchaseOrder(purchaseOrderId: number): Promise<SupplierBidSummary[]> {
   return apiClient.get<SupplierBidSummary[]>(`/purchase-orders/${purchaseOrderId}/bids`);
 }
 
+/** Creates a standalone (unattached) bid via the top-level library endpoint. */
+export function createStandaloneBid(request: CreateSupplierBidRequest): Promise<SupplierBidDetail> {
+  return apiClient.post<SupplierBidDetail>('/supplier-bids', request);
+}
+
+/** Creates a bid already attached to the given PO (the composer's "+ New Bid" shortcut). */
 export function createBid(
   purchaseOrderId: number,
   request: CreateSupplierBidRequest,
 ): Promise<SupplierBidDetail> {
   return apiClient.post<SupplierBidDetail>(`/purchase-orders/${purchaseOrderId}/bids`, request);
+}
+
+/** Attaches an existing standalone bid to a Draft purchase order. */
+export function attachBidToPurchaseOrder(
+  supplierBidId: number,
+  purchaseOrderId: number,
+): Promise<SupplierBidDetail> {
+  return apiClient.post<SupplierBidDetail>(`/supplier-bids/${supplierBidId}/attach`, {
+    purchaseOrderId,
+  });
 }
 
 export function getBid(id: number): Promise<SupplierBidDetail> {
