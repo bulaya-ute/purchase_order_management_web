@@ -9,6 +9,13 @@ export function Sidebar() {
 
   return (
     <nav className="app-sidebar" aria-label="Primary">
+      <div className="sidebar-brand">
+        <span className="sidebar-brand-mark" aria-hidden="true">
+          PO
+        </span>
+        <span className="sidebar-brand-text">Purchase Orders</span>
+      </div>
+
       <ul className="nav-list">
         {PRIMARY_NAV_ITEMS.map((item) => (
           <li key={item.to}>
