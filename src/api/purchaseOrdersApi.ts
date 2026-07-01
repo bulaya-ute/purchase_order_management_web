@@ -91,6 +91,13 @@ export interface PurchaseOrderLineItem {
   rowVersion: string;
 }
 
+/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderSupplierBidDto. */
+export interface PurchaseOrderAttachedBid {
+  supplierBidId: number;
+  isPrimary: boolean;
+  addedAtUtc: string;
+}
+
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderDto. */
 export interface PurchaseOrderDetail {
   id: number;
@@ -122,6 +129,8 @@ export interface PurchaseOrderDetail {
   lineItems: PurchaseOrderLineItem[];
   approvals: ApprovalDto[];
   supplierBids: SupplierBidSummary[];
+  /** Junction-row metadata for all SBs attached to this PO (primary + alternatives). */
+  attachedSupplierBids: PurchaseOrderAttachedBid[];
   rowVersion: string;
 }
 
@@ -203,6 +212,27 @@ export function deliverPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
 
 export function cancelPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
   return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${id}/cancel`);
+}
+
+export function attachSupplierBid(
+  poId: number,
+  supplierBidId: number,
+  isPrimary: boolean,
+): Promise<PurchaseOrderDetail> {
+  return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${poId}/supplier-bids`, {
+    supplierBidId,
+    isPrimary,
+  });
+}
+
+export function detachSupplierBid(poId: number, supplierBidId: number): Promise<void> {
+  return apiClient.delete<void>(`/purchase-orders/${poId}/supplier-bids/${supplierBidId}`);
+}
+
+export function setPrimarySupplierBid(poId: number, supplierBidId: number): Promise<void> {
+  return apiClient.patch<void>(
+    `/purchase-orders/${poId}/supplier-bids/${supplierBidId}/set-primary`,
+  );
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.SelectAwardedBidRequest. */

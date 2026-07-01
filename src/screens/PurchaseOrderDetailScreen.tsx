@@ -5,6 +5,7 @@ import {
   deliverPurchaseOrder,
   getPurchaseOrder,
   payPurchaseOrder,
+  setPrimarySupplierBid,
 } from '../api/purchaseOrdersApi';
 import type { PurchaseOrderDetail } from '../api/purchaseOrdersApi';
 import {
@@ -19,12 +20,14 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
+import { useAuth } from '../auth/useAuth';
 import { formatDate, formatMoney, formatMoneyVector } from '../utils/format';
 import './admin/admin.css';
 
 export function PurchaseOrderDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const poId = Number(id);
+  const { user: currentUser } = useAuth();
 
   const [po, setPo] = useState<PurchaseOrderDetail | null>(null);
   const [actionableIds, setActionableIds] = useState<Set<number>>(new Set());
@@ -35,6 +38,7 @@ export function PurchaseOrderDetailScreen() {
   // Inline approve/reject UI state, keyed by approval id.
   const [commentByApproval, setCommentByApproval] = useState<Record<number, string>>({});
   const [busyApprovalId, setBusyApprovalId] = useState<number | null>(null);
+  const [busyPrimaryBidId, setBusyPrimaryBidId] = useState<number | null>(null);
 
   const [isMilestoneBusy, setIsMilestoneBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -116,6 +120,19 @@ export function PurchaseOrderDetailScreen() {
     }
   };
 
+  const handleSetPrimary = async (supplierBidId: number) => {
+    setBusyPrimaryBidId(supplierBidId);
+    try {
+      await setPrimarySupplierBid(poId, supplierBidId);
+      setToast({ kind: 'success', text: 'Primary supplier bid set. The bid list is now locked.' });
+      await load();
+    } catch (err) {
+      setToast({ kind: 'error', text: getErrorMessage(err, 'Failed to set the primary bid.') });
+    } finally {
+      setBusyPrimaryBidId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="po-detail">
@@ -145,6 +162,20 @@ export function PurchaseOrderDetailScreen() {
   const canCancel =
     (po.status === 'Draft' || po.status === 'Open' || po.status === 'Approved') && !po.paidAtUtc;
   const canRecordMilestones = po.status === 'Approved';
+
+  // Supplier bid panel derived state.
+  const isLocked = (po.attachedSupplierBids ?? []).some((b) => b.isPrimary);
+  const isCreator = currentUser?.id === po.issuerUserId;
+  // User is the legal approver if any of their actionable approvals belong to this PO.
+  const isLegalApprover = po.approvals.some((a) => actionableIds.has(a.id));
+  const canSetPrimary =
+    !isLocked &&
+    ((isCreator && po.status === 'Draft') || isLegalApprover);
+  // Approve is blocked when there are attached bids but no primary has been set.
+  const hasAttachedBids = (po.attachedSupplierBids ?? []).length > 0;
+  const isApproveBlocked = hasAttachedBids && !isLocked;
+  // Map supplierBidId → full bid summary for display in the SB panel.
+  const bidDetailMap = new Map(po.supplierBids.map((b) => [b.id, b]));
 
   return (
     <section className="po-detail">
@@ -281,19 +312,78 @@ export function PurchaseOrderDetailScreen() {
         </div>
       )}
 
-      {/* Supplier bids (read-only) */}
-      {po.supplierBids.length > 0 && (
+      {/* Supplier Bids panel */}
+      {((po.attachedSupplierBids ?? []).length > 0 || po.supplierBids.length > 0) && (
         <div className="admin-panel po-section" style={{ padding: '1rem' }}>
           <h3>Supplier Bids</h3>
-          <div className="bid-card-grid">
-            {po.supplierBids.map((bid) => (
-              <BidCard
-                key={bid.id}
-                bid={bid}
-                isAwarded={bid.id === po.awardedSupplierBidId}
-              />
-            ))}
-          </div>
+          {(po.attachedSupplierBids ?? []).length > 0 ? (
+            <>
+              {canSetPrimary && (
+                <p className="form-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                  Set the primary bid before approvals can proceed. This action is irreversible.
+                </p>
+              )}
+              {isLocked && (
+                <p className="form-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                  The primary bid has been set. This list is now locked.
+                </p>
+              )}
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Supplier</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Role</th>
+                    {canSetPrimary && <th aria-label="Actions" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(po.attachedSupplierBids ?? []).map((attached) => {
+                    const detail = bidDetailMap.get(attached.supplierBidId);
+                    return (
+                      <tr key={attached.supplierBidId}>
+                        <td>{detail?.supplierName ?? `Bid #${attached.supplierBidId}`}</td>
+                        <td>{detail?.itemCount ?? '—'}</td>
+                        <td>{detail ? formatMoneyVector(detail.totals) : '—'}</td>
+                        <td>
+                          {attached.isPrimary ? (
+                            <span className="badge badge-success">Primary</span>
+                          ) : (
+                            <span className="badge badge-muted">Alternative</span>
+                          )}
+                        </td>
+                        {canSetPrimary && (
+                          <td>
+                            {!attached.isPrimary && (
+                              <button
+                                type="button"
+                                className="btn btn-small btn-primary"
+                                disabled={busyPrimaryBidId === attached.supplierBidId}
+                                onClick={() => void handleSetPrimary(attached.supplierBidId)}
+                              >
+                                Set as Primary
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <div className="bid-card-grid">
+              {po.supplierBids.map((bid) => (
+                <BidCard
+                  key={bid.id}
+                  bid={bid}
+                  isAwarded={bid.id === po.awardedSupplierBidId}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -380,11 +470,17 @@ export function PurchaseOrderDetailScreen() {
                               }))
                             }
                           />
+                          {isApproveBlocked && (
+                            <span className="form-error" style={{ fontSize: '0.8rem' }}>
+                              A primary Supplier Bid must be set before approving.
+                            </span>
+                          )}
                           <div className="approval-act-buttons">
                             <button
                               type="button"
                               className="btn btn-small btn-primary"
-                              disabled={busyApprovalId === approval.id}
+                              disabled={busyApprovalId === approval.id || isApproveBlocked}
+                              title={isApproveBlocked ? 'Set a primary Supplier Bid first' : undefined}
                               onClick={() => void handleApprovalAction(approval, 'approve')}
                             >
                               Approve
