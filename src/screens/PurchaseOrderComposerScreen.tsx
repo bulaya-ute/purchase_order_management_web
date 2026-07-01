@@ -4,15 +4,20 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   addApprovalDefinition,
   addLineItem,
+  attachSupplierBid,
   createPurchaseOrder,
   deleteApprovalDefinition,
   deleteLineItem,
+  detachSupplierBid,
   getPurchaseOrder,
+  setPrimarySupplierBid,
   submitPurchaseOrder,
   updateLineItem,
   updatePurchaseOrder,
 } from '../api/purchaseOrdersApi';
 import type { PurchaseOrderDetail, PurchaseOrderLineItem } from '../api/purchaseOrdersApi';
+import { listBids } from '../api/bidsApi';
+import type { SupplierBidSummary } from '../api/bidsApi';
 import type { ApprovalDto } from '../api/approvalsApi';
 import { listAllCompanies } from '../api/companiesApi';
 import type { Company } from '../api/companiesApi';
@@ -288,6 +293,14 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Attached supplier bids (junction table).
+  const [allBids, setAllBids] = useState<SupplierBidSummary[]>([]);
+  const [attachBidId, setAttachBidId] = useState<string>('');
+  const [attachIsPrimary, setAttachIsPrimary] = useState(false);
+  const [isAttachingBid, setIsAttachingBid] = useState(false);
+  const [attachBidError, setAttachBidError] = useState<string | null>(null);
+  const [busyBidId, setBusyBidId] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -337,6 +350,9 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
     listCurrencies({ isActive: true })
       .then(setCurrencies)
       .catch(() => setCurrencies([]));
+    listBids()
+      .then(setAllBids)
+      .catch(() => setAllBids([]));
   }, []);
 
   useEffect(() => {
@@ -375,6 +391,10 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
   }
 
   const isDraft = po.status === 'Draft';
+  const isLocked = po.attachedSupplierBids.some((b) => b.isPrimary);
+  const attachedBidIds = new Set(po.attachedSupplierBids.map((b) => b.supplierBidId));
+  const availableBidsToAttach = allBids.filter((b) => !attachedBidIds.has(b.id));
+  const bidSummaryMap = new Map(allBids.map((b) => [b.id, b]));
 
   if (!isDraft) {
     return (
@@ -555,6 +575,52 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
       setDeletingApproval(null);
     } finally {
       setIsDeletingApproval(false);
+    }
+  };
+
+  const handleAttachBid = async () => {
+    if (!attachBidId) return;
+    setIsAttachingBid(true);
+    setAttachBidError(null);
+    try {
+      const updated = await attachSupplierBid(po.id, Number(attachBidId), attachIsPrimary);
+      setPo(updated);
+      setAttachBidId('');
+      setAttachIsPrimary(false);
+      setToast({ kind: 'success', text: 'Supplier bid attached.' });
+    } catch (err) {
+      setAttachBidError(getErrorMessage(err, 'Failed to attach the supplier bid.'));
+    } finally {
+      setIsAttachingBid(false);
+    }
+  };
+
+  const handleDetachBid = async (supplierBidId: number) => {
+    setBusyBidId(supplierBidId);
+    try {
+      await detachSupplierBid(po.id, supplierBidId);
+      setToast({ kind: 'success', text: 'Supplier bid detached.' });
+      await load();
+    } catch (err) {
+      setToast({ kind: 'error', text: getErrorMessage(err, 'Failed to detach the supplier bid.') });
+    } finally {
+      setBusyBidId(null);
+    }
+  };
+
+  const handleSetPrimaryBid = async (supplierBidId: number) => {
+    setBusyBidId(supplierBidId);
+    try {
+      await setPrimarySupplierBid(po.id, supplierBidId);
+      setToast({ kind: 'success', text: 'Primary supplier bid set.' });
+      await load();
+    } catch (err) {
+      setToast({
+        kind: 'error',
+        text: getErrorMessage(err, 'Failed to set primary supplier bid.'),
+      });
+    } finally {
+      setBusyBidId(null);
     }
   };
 
@@ -845,6 +911,130 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
         />
       </div>
 
+      {/* Attached supplier bids */}
+      <div className="admin-panel po-section" style={{ padding: '1rem' }}>
+        <h3>Attached Supplier Bids</h3>
+        <p className="form-hint">
+          Attach supplier bids for formal comparison. Mark one as primary before submitting —
+          approval will require a primary bid to be set. Once a primary is designated, the list is
+          locked.
+        </p>
+
+        {isLocked && (
+          <div className="admin-error" role="status" style={{ background: 'var(--color-warning-bg, #fff7e6)', color: 'var(--color-warning, #8a6d3b)', borderColor: 'var(--color-warning-border, #f5c06e)' }}>
+            The attached bid list is locked — a primary bid has been set and cannot be changed.
+          </div>
+        )}
+
+        {po.attachedSupplierBids.length === 0 ? (
+          <div className="admin-empty">No supplier bids attached yet.</div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Bid</th>
+                <th>Supplier</th>
+                <th>Role</th>
+                {!isLocked && <th aria-label="Actions" />}
+              </tr>
+            </thead>
+            <tbody>
+              {po.attachedSupplierBids.map((ab) => {
+                const bid = bidSummaryMap.get(ab.supplierBidId);
+                const isBusy = busyBidId === ab.supplierBidId;
+                return (
+                  <tr key={ab.supplierBidId}>
+                    <td>Bid #{ab.supplierBidId}</td>
+                    <td>{bid?.supplierName ?? '—'}</td>
+                    <td>
+                      {ab.isPrimary ? (
+                        <span className="po-chip po-chip-set">Primary</span>
+                      ) : (
+                        <span className="po-chip">Alternative</span>
+                      )}
+                    </td>
+                    {!isLocked && (
+                      <td>
+                        <div className="row-actions">
+                          {!ab.isPrimary && (
+                            <button
+                              type="button"
+                              className="btn btn-small btn-secondary"
+                              disabled={isBusy}
+                              onClick={() => void handleSetPrimaryBid(ab.supplierBidId)}
+                            >
+                              Set as primary
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn-small btn-danger"
+                            disabled={isBusy}
+                            onClick={() => void handleDetachBid(ab.supplierBidId)}
+                          >
+                            Detach
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        {!isLocked && (
+          <div style={{ marginTop: '0.75rem' }}>
+            {attachBidError && (
+              <div className="admin-error" role="alert">
+                {attachBidError}
+              </div>
+            )}
+            <div className="po-meta">
+              <div className="form-field">
+                <label htmlFor="attach-bid-select">Supplier bid</label>
+                <select
+                  id="attach-bid-select"
+                  value={attachBidId}
+                  onChange={(e) => setAttachBidId(e.target.value)}
+                  disabled={isAttachingBid}
+                >
+                  <option value="">Select a supplier bid…</option>
+                  {availableBidsToAttach.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      Bid #{b.id} — {b.supplierName}
+                      {b.itemCount > 0 ? ` (${b.itemCount} item${b.itemCount !== 1 ? 's' : ''})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field" style={{ justifyContent: 'flex-end' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={attachIsPrimary}
+                    onChange={(e) => setAttachIsPrimary(e.target.checked)}
+                    disabled={isAttachingBid}
+                  />
+                  Attach as primary
+                </label>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!attachBidId || isAttachingBid}
+                onClick={() => void handleAttachBid()}
+              >
+                {isAttachingBid ? 'Attaching…' : 'Attach bid'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Approvals */}
       <div className="admin-panel po-section" style={{ padding: '1rem' }}>
         <h3>Approvals</h3>
@@ -1034,11 +1224,16 @@ function PurchaseOrderEditor({ poId }: PurchaseOrderEditorProps) {
       {/* Submit */}
       <div className="admin-panel po-section" style={{ padding: '1rem' }}>
         <h3>Submit</h3>
+        {po.attachedSupplierBids.length === 0 && (
+          <p className="form-hint" style={{ color: 'var(--color-danger, #c0392b)' }}>
+            At least one supplier bid must be attached before this PO can be submitted.
+          </p>
+        )}
         <div className="po-actions">
           <button
             type="button"
             className="btn btn-primary"
-            disabled={!isDraft || isSubmitting}
+            disabled={!isDraft || isSubmitting || po.attachedSupplierBids.length === 0}
             onClick={() => setConfirmSubmit(true)}
           >
             Submit
