@@ -5,11 +5,10 @@ import type { PurchaseOrderStatus, PurchaseOrderSummary } from '../api/purchaseO
 import { listAllCompanies } from '../api/companiesApi';
 import type { Company } from '../api/companiesApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { Pagination } from '../components/Pagination';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatMoney } from '../utils/format';
 import './admin/admin.css';
-
-const PAGE_SIZE = 20;
 
 const STATUSES: PurchaseOrderStatus[] = ['Draft', 'Open', 'Approved', 'Rejected', 'Cancelled'];
 
@@ -17,13 +16,12 @@ export function PurchaseOrdersScreen() {
   const [orders, setOrders] = useState<PurchaseOrderSummary[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | ''>('');
   const [companyFilter, setCompanyFilter] = useState<number | ''>('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -31,7 +29,7 @@ export function PurchaseOrdersScreen() {
     try {
       const result = await listPurchaseOrders({
         page,
-        pageSize: PAGE_SIZE,
+        pageSize,
         status: statusFilter || undefined,
         companyId: companyFilter || undefined,
       });
@@ -42,7 +40,7 @@ export function PurchaseOrdersScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, statusFilter, companyFilter]);
+  }, [page, pageSize, statusFilter, companyFilter]);
 
   useEffect(() => {
     void load();
@@ -154,27 +152,13 @@ export function PurchaseOrdersScreen() {
               </tbody>
             </table>
 
-            <div className="admin-pagination">
-              <span>
-                Page {page} of {totalPages} ({totalCount} total)
-              </span>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </button>
-            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </div>
