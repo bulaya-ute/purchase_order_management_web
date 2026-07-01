@@ -7,6 +7,8 @@ interface CompanyFormModalProps {
   company?: Company;
   /** Candidate parents — the full company list minus the company being edited (and its descendants are not excluded client-side; the API validates cycles). */
   companies: Company[];
+  /** Pre-selects the parent company picker when creating from a tree node's "Add child" button. */
+  defaultParentCompanyId?: number;
   isSaving: boolean;
   error: string | null;
   onSubmit: (values: { name: string; parentCompanyId: number | null }) => void;
@@ -16,15 +18,18 @@ interface CompanyFormModalProps {
 export function CompanyFormModal({
   company,
   companies,
+  defaultParentCompanyId,
   isSaving,
   error,
   onSubmit,
   onCancel,
 }: CompanyFormModalProps) {
   const [name, setName] = useState(company?.name ?? '');
-  const [parentCompanyId, setParentCompanyId] = useState<string>(
-    company?.parentCompanyId != null ? String(company.parentCompanyId) : '',
-  );
+  const [parentCompanyId, setParentCompanyId] = useState<string>(() => {
+    if (company?.parentCompanyId != null) return String(company.parentCompanyId);
+    if (defaultParentCompanyId != null) return String(defaultParentCompanyId);
+    return '';
+  });
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
