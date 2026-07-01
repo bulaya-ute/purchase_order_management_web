@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { listBids } from '../api/bidsApi';
+import { SupplierBidComposerModal } from './SupplierBidComposerModal';
 import type { SupplierBidSummary } from '../api/bidsApi';
 import { listSuppliers } from '../api/suppliersApi';
 import type { Supplier } from '../api/suppliersApi';
@@ -18,7 +19,7 @@ const PAGE_SIZE = 20;
  * composer screen, which is the only place bid items get added.
  */
 export function SupplierBidsScreen() {
-  const navigate = useNavigate();
+  const [showComposer, setShowComposer] = useState(false);
 
   const [bids, setBids] = useState<SupplierBidSummary[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -123,7 +124,7 @@ export function SupplierBidsScreen() {
             </button>
           </form>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => navigate('/supplier-bids/new')}>
+        <button type="button" className="btn btn-primary" onClick={() => setShowComposer(true)}>
           + New bid
         </button>
       </div>
@@ -192,6 +193,16 @@ export function SupplierBidsScreen() {
           </>
         )}
       </div>
+
+      {showComposer && (
+        <SupplierBidComposerModal
+          onClose={() => setShowComposer(false)}
+          onDone={() => {
+            setShowComposer(false);
+            void load();
+          }}
+        />
+      )}
     </section>
   );
 }
