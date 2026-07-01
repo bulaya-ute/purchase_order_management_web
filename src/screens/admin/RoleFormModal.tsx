@@ -8,6 +8,8 @@ interface RoleFormModalProps {
   isLoadingAllowedParents: boolean;
   isSaving: boolean;
   error: string | null;
+  /** When set, pre-selects this role as the parent in the dropdown. */
+  defaultParentRoleId?: number;
   onSubmit: (values: { name: string; parentRoleId: number }) => void;
   onCancel: () => void;
 }
@@ -17,6 +19,7 @@ export function RoleFormModal({
   isLoadingAllowedParents,
   isSaving,
   error,
+  defaultParentRoleId,
   onSubmit,
   onCancel,
 }: RoleFormModalProps) {
@@ -25,11 +28,18 @@ export function RoleFormModal({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // allowedParents arrives asynchronously after the modal opens; default the select once loaded.
+  // If a defaultParentRoleId was supplied and exists in the allowed list, prefer it; otherwise fall
+  // back to the first allowed parent.
   useEffect(() => {
-    if (!parentRoleId && allowedParents[0]) {
-      setParentRoleId(String(allowedParents[0].id));
+    if (!parentRoleId && allowedParents.length > 0) {
+      const preferred =
+        defaultParentRoleId !== undefined &&
+        allowedParents.some((r) => r.id === defaultParentRoleId)
+          ? defaultParentRoleId
+          : allowedParents[0].id;
+      setParentRoleId(String(preferred));
     }
-  }, [allowedParents, parentRoleId]);
+  }, [allowedParents, parentRoleId, defaultParentRoleId]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

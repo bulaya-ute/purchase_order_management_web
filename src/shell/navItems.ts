@@ -4,7 +4,7 @@ export interface NavItem {
 }
 
 export const PRIMARY_NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', to: '/' },
+  { label: 'Home', to: '/' },
   { label: 'Purchase Orders', to: '/purchase-orders' },
   { label: 'Approvals', to: '/approvals' },
   { label: 'Suppliers', to: '/suppliers' },
@@ -15,7 +15,7 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: 'Companies', to: '/admin/companies' },
   { label: 'Users', to: '/admin/users' },
-  { label: 'Roles', to: '/admin/roles' },
+  { label: 'Access Roles', to: '/admin/roles' },
   { label: 'Currencies', to: '/admin/currencies' },
   { label: 'PO Types', to: '/admin/po-types' },
 ];

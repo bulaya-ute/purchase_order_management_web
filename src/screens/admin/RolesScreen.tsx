@@ -22,6 +22,7 @@ export function RolesScreen() {
   const [isLoadingAllowedParents, setIsLoadingAllowedParents] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [defaultParentRoleId, setDefaultParentRoleId] = useState<number | undefined>(undefined);
 
   const [renamingRole, setRenamingRole] = useState<RoleTreeNode | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -50,8 +51,9 @@ export function RolesScreen() {
 
   const tree = buildRoleTree(roles);
 
-  const openCreate = async () => {
+  const openCreate = async (preselectedParentId?: number) => {
     setFormError(null);
+    setDefaultParentRoleId(preselectedParentId);
     setIsCreating(true);
     setIsLoadingAllowedParents(true);
     try {
@@ -113,10 +115,7 @@ export function RolesScreen() {
   return (
     <section className="admin-screen">
       <div className="admin-header">
-        <h2>Roles</h2>
-        <button type="button" className="btn btn-primary" onClick={() => void openCreate()}>
-          New role
-        </button>
+        <h2>Access Roles</h2>
       </div>
 
       <div className="admin-panel">
@@ -130,14 +129,17 @@ export function RolesScreen() {
           <div className="admin-empty">No roles yet.</div>
         ) : (
           <div style={{ padding: '1rem' }}>
-            <RoleTreeView
-              nodes={tree}
-              onRename={(node) => {
-                setRenameError(null);
-                setRenamingRole(node);
-              }}
-              onDelete={(node) => setDeletingRole(node)}
-            />
+            <div className="role-tree-scroll">
+              <RoleTreeView
+                nodes={tree}
+                onAddChild={(node) => void openCreate(node.id)}
+                onRename={(node) => {
+                  setRenameError(null);
+                  setRenamingRole(node);
+                }}
+                onDelete={(node) => setDeletingRole(node)}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -148,6 +150,7 @@ export function RolesScreen() {
           isLoadingAllowedParents={isLoadingAllowedParents}
           isSaving={isSaving}
           error={formError}
+          defaultParentRoleId={defaultParentRoleId}
           onSubmit={handleCreate}
           onCancel={() => setIsCreating(false)}
         />
@@ -166,7 +169,7 @@ export function RolesScreen() {
       {deletingRole && (
         <ConfirmDialog
           title="Delete role"
-          message={`Delete "${deletingRole.name}"? This cannot be undone.`}
+          message={`Delete "${deletingRole.name}" and all its child roles? This cannot be undone.`}
           confirmLabel="Delete"
           isBusy={isDeleting}
           onConfirm={handleDelete}

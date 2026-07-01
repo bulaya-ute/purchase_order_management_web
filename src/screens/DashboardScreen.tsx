@@ -38,8 +38,8 @@ export function DashboardScreen() {
   }, [user?.id]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1080px' }}>
-      <h2 style={{ margin: 0 }}>Dashboard</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem',  }}>
+      <h2 style={{ margin: 0 }}>Home</h2>
 
       {/* Outgoing POs */}
       <div>
