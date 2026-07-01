@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listBids } from '../api/bidsApi';
 import { SupplierBidComposerModal } from './SupplierBidComposerModal';
@@ -7,10 +6,10 @@ import type { SupplierBidSummary } from '../api/bidsApi';
 import { listSuppliers } from '../api/suppliersApi';
 import type { Supplier } from '../api/suppliersApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { Pagination } from '../components/Pagination';
 import { formatMoneyVector } from '../utils/format';
+import { scoreMatch } from '../utils/search';
 import './admin/admin.css';
-
-const PAGE_SIZE = 20;
 
 /**
  * Paginated library view over every supplier bid (attached or not): supplier, item count,
@@ -26,8 +25,8 @@ export function SupplierBidsScreen() {
   const [supplierFilter, setSupplierFilter] = useState<number | ''>('');
   const [unattachedOnly, setUnattachedOnly] = useState(false);
   const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,19 +57,20 @@ export function SupplierBidsScreen() {
       .catch(() => setSuppliers([]));
   }, []);
 
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPage(1);
-    setSearch(searchInput.trim());
-  };
-
-  const filteredBids = search
-    ? bids.filter((b) => b.supplierName.toLowerCase().includes(search.toLowerCase()))
-    : bids;
+  const filteredBids = useMemo(() => {
+    const scored = bids.map((b) => ({
+      item: b,
+      score: scoreMatch(search, [b.supplierName]),
+    }));
+    if (scored[0]?.score === -1) return bids; // empty query sentinel
+    return scored
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.item);
+  }, [bids, search]);
 
   const totalCount = filteredBids.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const pageBids = filteredBids.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageBids = filteredBids.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <section className="admin-screen admin-screen--wide">
@@ -108,21 +108,14 @@ export function SupplierBidsScreen() {
             Unattached only
           </label>
 
-          <form onSubmit={handleSearchSubmit} role="search" style={{ display: 'flex', gap: '0.5rem' }}>
-            <label htmlFor="bid-search" style={{ alignSelf: 'center' }}>
-              Search
-            </label>
-            <input
-              id="bid-search"
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Supplier name…"
-            />
-            <button type="submit" className="btn btn-small btn-secondary">
-              Search
-            </button>
-          </form>
+          <input
+            id="bid-search"
+            type="search"
+            aria-label="Search supplier bids"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search supplier…"
+          />
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setShowComposer(true)}>
           + New bid
@@ -169,27 +162,13 @@ export function SupplierBidsScreen() {
               </tbody>
             </table>
 
-            <div className="admin-pagination">
-              <span>
-                Page {page} of {totalPages} ({totalCount} total)
-              </span>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </button>
-            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </div>

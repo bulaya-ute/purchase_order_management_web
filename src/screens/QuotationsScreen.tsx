@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { scoreMatch } from '../utils/search';
 import { createQuotation, listQuotations } from '../api/quotationsApi';
 import type { QuotationListQuery, QuotationSummary } from '../api/quotationsApi';
 import type { CreateQuotationRequest } from '../api/quotationsApi';
@@ -189,15 +190,15 @@ export function QuotationsScreen() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!searchText.trim()) return quotations;
-    const term = searchText.toLowerCase();
-    return quotations.filter(
-      (q) =>
-        q.supplierName.toLowerCase().includes(term) ||
-        (q.description ?? '').toLowerCase().includes(term) ||
-        (q.quoteReference ?? '').toLowerCase().includes(term) ||
-        (q.notes ?? '').toLowerCase().includes(term),
-    );
+    const scored = quotations.map((q) => ({
+      item: q,
+      score: scoreMatch(searchText, [q.supplierName, q.description, q.quoteReference, q.notes]),
+    }));
+    if (scored[0]?.score === -1) return quotations; // empty query sentinel
+    return scored
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.item);
   }, [quotations, searchText]);
 
   const openCreate = () => {

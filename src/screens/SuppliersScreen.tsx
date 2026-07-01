@@ -9,17 +9,17 @@ import {
 import type { Supplier } from '../api/suppliersApi';
 import { getErrorMessage } from '../api/errorMessage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Pagination } from '../components/Pagination';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
 import { SupplierFormModal } from './SupplierFormModal';
 import type { SupplierFormValues } from './SupplierFormModal';
 import './admin/admin.css';
 
-const PAGE_SIZE = 20;
-
 export function SuppliersScreen() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -36,13 +36,11 @@ export function SuppliersScreen() {
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
   const load = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const result = await listSuppliers({ page, pageSize: PAGE_SIZE, search: search || undefined });
+      const result = await listSuppliers({ page, pageSize, search: search || undefined });
       setSuppliers(result.items);
       setTotalCount(result.totalCount);
     } catch (err) {
@@ -50,7 +48,7 @@ export function SuppliersScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     void load();
@@ -183,27 +181,13 @@ export function SuppliersScreen() {
               </tbody>
             </table>
 
-            <div className="admin-pagination">
-              <span>
-                Page {page} of {totalPages} ({totalCount} total)
-              </span>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </button>
-            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </div>

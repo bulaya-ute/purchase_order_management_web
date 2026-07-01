@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -30,6 +30,7 @@ import type { Currency } from '../api/currenciesApi';
 import { getPurchaseOrderType, listPurchaseOrderTypes } from '../api/purchaseOrderTypesApi';
 import type { PurchaseOrderTypeDto } from '../api/purchaseOrderTypesApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { useAuth } from '../auth/useAuth';
 import { BidManager } from '../components/BidManager';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatusBadge } from '../components/StatusBadge';
@@ -77,6 +78,7 @@ export function PurchaseOrderComposerScreen() {
   const isNew = id === undefined;
   const poId = id !== undefined ? Number(id) : undefined;
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
@@ -88,6 +90,17 @@ export function PurchaseOrderComposerScreen() {
   const [currency, setCurrency] = useState('');
   const [poTypes, setPoTypes] = useState<PurchaseOrderTypeDto[]>([]);
   const [purchaseOrderTypeId, setPurchaseOrderTypeId] = useState<string>('');
+
+  // Types the current user's roles permit them to create. Empty allowedCreatorRoleIds = no restriction.
+  const permittedPoTypes = useMemo(
+    () =>
+      poTypes.filter(
+        (t) =>
+          t.allowedCreatorRoleIds.length === 0 ||
+          t.allowedCreatorRoleNames.some((n) => currentUser?.roles.includes(n)),
+      ),
+    [poTypes, currentUser],
+  );
   const [notes, setNotes] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -194,7 +207,7 @@ export function PurchaseOrderComposerScreen() {
                 disabled={isCreating}
               >
                 <option value="">None</option>
-                {poTypes.map((t) => (
+                {permittedPoTypes.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
