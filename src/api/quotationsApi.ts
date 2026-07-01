@@ -24,6 +24,12 @@ export interface Quotation {
   currency: string;
   notes: string | null;
   isUsed: boolean;
+  taxRate: number | null;
+  discountRate: number | null;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  grandTotal: number;
   lineItems: QuotationLineItem[];
 }
 
@@ -44,6 +50,12 @@ export interface QuotationSummary {
   notes: string | null;
   lineItemCount: number;
   isUsed: boolean;
+  taxRate: number | null;
+  discountRate: number | null;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  grandTotal: number;
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.CreateQuotationLineItemRequest. */
@@ -62,6 +74,8 @@ export interface CreateQuotationRequest {
   quoteDate: string;
   expiresAtUtc?: string | null;
   currency: string;
+  taxRate?: number | null;
+  discountRate?: number | null;
   notes?: string | null;
   lineItems: CreateQuotationLineItemRequest[];
 }
