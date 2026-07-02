@@ -659,6 +659,117 @@
   transform: rotate(90deg);
 }
 
+/* ----- PO detail redesign ----- */
+.po-actions-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.po-bid-cards {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.po-bid-card {
+  flex: 0 0 auto;
+  min-width: 180px;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg, var(--radius));
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: border-color 0.15s;
+  background: transparent;
+}
+
+.po-bid-card:hover {
+  border-color: var(--color-primary);
+}
+
+.po-bid-card--selected {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.po-bid-card--awarded {
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+}
+
+.po-bid-card-supplier {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.po-bid-card-total {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.po-bid-card-meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.po-bid-preview-row {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.po-bid-preview {
+  min-width: 0;
+}
+
+.po-bid-quotations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.po-bid-quotation-card {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.po-bid-approval-status {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* PO document card */
+.po-document {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.po-document-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.po-document-po-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 /* Toast */
 .toast-stack {
   position: fixed;
