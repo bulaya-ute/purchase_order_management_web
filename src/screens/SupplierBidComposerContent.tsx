@@ -224,9 +224,7 @@ export function SupplierBidComposerContent({
                 {filteredQuotations.map((q) => {
                   const lineIds = quotationLineIds.get(q.id);
                   const linesInBid = bid.items.filter(
-                    (item) =>
-                      item.sourceQuotationLineItemId !== null &&
-                      lineIds?.has(item.sourceQuotationLineItemId),
+                    (item) => lineIds?.has(item.sourceQuotationLineItemId),
                   ).length;
                   return (
                     <button
@@ -373,9 +371,7 @@ function QuotationLinePickerModal({
   }, [quotationId]);
 
   const bidItemBySourceLineId = new Map(
-    bid.items
-      .filter((item) => item.sourceQuotationLineItemId !== null)
-      .map((item) => [item.sourceQuotationLineItemId as number, item]),
+    bid.items.map((item) => [item.sourceQuotationLineItemId, item]),
   );
 
   const handleToggle = async (lineId: number, checked: boolean) => {

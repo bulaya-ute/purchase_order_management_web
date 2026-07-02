@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  addBidItem,
   attachBidToPurchaseOrder,
   createBid,
   deleteBidItem,
@@ -460,32 +459,23 @@ function BidPreview({ bidId, isAwarded, onAward, onClose, onChanged }: BidPrevie
       return;
     }
 
+    // Only the edit path is supported — new items must come from quotation seeding.
+    if (editingItemId === null) return;
+
     setIsSavingItem(true);
     setItemError(null);
     try {
-      if (editingItemId !== null) {
-        const existing = bid?.items.find((i) => i.id === editingItemId);
-        await updateBidItem(bidId, editingItemId, {
-          description,
-          quantity,
-          unitCost,
-          currency: itemForm.currency,
-          discountPercentage,
-          taxPercentage,
-          rowVersion: existing?.rowVersion,
-        });
-        setToast({ kind: 'success', text: 'Bid item updated.' });
-      } else {
-        await addBidItem(bidId, {
-          description,
-          quantity,
-          unitCost,
-          currency: itemForm.currency,
-          discountPercentage,
-          taxPercentage,
-        });
-        setToast({ kind: 'success', text: 'Bid item added.' });
-      }
+      const existing = bid?.items.find((i) => i.id === editingItemId);
+      await updateBidItem(bidId, editingItemId, {
+        description,
+        quantity,
+        unitCost,
+        currency: itemForm.currency,
+        discountPercentage,
+        taxPercentage,
+        rowVersion: existing?.rowVersion,
+      });
+      setToast({ kind: 'success', text: 'Bid item updated.' });
       resetItemForm();
       await loadBid();
       onChanged();
@@ -617,100 +607,100 @@ function BidPreview({ bidId, isAwarded, onAward, onClose, onChanged }: BidPrevie
               </table>
             )}
 
-            <form className="admin-form" onSubmit={handleSubmitItem} style={{ marginTop: '0.5rem' }}>
-              {itemError && (
-                <div className="admin-error" role="alert">
-                  {itemError}
+            {/* Inline edit form — only shown when editing an existing item. New items must
+                come from quotations via the seed / quotation picker path below. */}
+            {editingItemId !== null && (
+              <form className="admin-form" onSubmit={handleSubmitItem} style={{ marginTop: '0.5rem' }}>
+                {itemError && (
+                  <div className="admin-error" role="alert">
+                    {itemError}
+                  </div>
+                )}
+                <div className="po-meta">
+                  <div className="form-field">
+                    <label htmlFor="bid-item-description">Description</label>
+                    <input
+                      id="bid-item-description"
+                      type="text"
+                      value={itemForm.description}
+                      onChange={(e) => setItemForm((f) => ({ ...f, description: e.target.value }))}
+                      disabled={isSavingItem}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bid-item-quantity">Quantity</label>
+                    <input
+                      id="bid-item-quantity"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={itemForm.quantity}
+                      onChange={(e) => setItemForm((f) => ({ ...f, quantity: e.target.value }))}
+                      disabled={isSavingItem}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bid-item-unit-cost">Unit cost</label>
+                    <input
+                      id="bid-item-unit-cost"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={itemForm.unitCost}
+                      onChange={(e) => setItemForm((f) => ({ ...f, unitCost: e.target.value }))}
+                      disabled={isSavingItem}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bid-item-currency">Currency</label>
+                    <select
+                      id="bid-item-currency"
+                      value={itemForm.currency}
+                      onChange={(e) => setItemForm((f) => ({ ...f, currency: e.target.value }))}
+                      disabled={isSavingItem}
+                    >
+                      {currencies.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bid-item-discount">Discount %</label>
+                    <input
+                      id="bid-item-discount"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={itemForm.discountPercentage}
+                      onChange={(e) =>
+                        setItemForm((f) => ({ ...f, discountPercentage: e.target.value }))
+                      }
+                      disabled={isSavingItem}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bid-item-tax">Tax %</label>
+                    <input
+                      id="bid-item-tax"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={itemForm.taxPercentage}
+                      onChange={(e) =>
+                        setItemForm((f) => ({ ...f, taxPercentage: e.target.value }))
+                      }
+                      disabled={isSavingItem}
+                    />
+                  </div>
                 </div>
-              )}
-              <div className="po-meta">
-                <div className="form-field">
-                  <label htmlFor="bid-item-description">Description</label>
-                  <input
-                    id="bid-item-description"
-                    type="text"
-                    value={itemForm.description}
-                    onChange={(e) => setItemForm((f) => ({ ...f, description: e.target.value }))}
-                    disabled={isSavingItem}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor="bid-item-quantity">Quantity</label>
-                  <input
-                    id="bid-item-quantity"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={itemForm.quantity}
-                    onChange={(e) => setItemForm((f) => ({ ...f, quantity: e.target.value }))}
-                    disabled={isSavingItem}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor="bid-item-unit-cost">Unit cost</label>
-                  <input
-                    id="bid-item-unit-cost"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={itemForm.unitCost}
-                    onChange={(e) => setItemForm((f) => ({ ...f, unitCost: e.target.value }))}
-                    disabled={isSavingItem}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor="bid-item-currency">Currency</label>
-                  <select
-                    id="bid-item-currency"
-                    value={itemForm.currency}
-                    onChange={(e) => setItemForm((f) => ({ ...f, currency: e.target.value }))}
-                    disabled={isSavingItem}
-                  >
-                    {currencies.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code} — {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label htmlFor="bid-item-discount">Discount %</label>
-                  <input
-                    id="bid-item-discount"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    value={itemForm.discountPercentage}
-                    onChange={(e) =>
-                      setItemForm((f) => ({ ...f, discountPercentage: e.target.value }))
-                    }
-                    disabled={isSavingItem}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor="bid-item-tax">Tax %</label>
-                  <input
-                    id="bid-item-tax"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    value={itemForm.taxPercentage}
-                    onChange={(e) => setItemForm((f) => ({ ...f, taxPercentage: e.target.value }))}
-                    disabled={isSavingItem}
-                  />
-                </div>
-              </div>
-              <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-                <button type="submit" className="btn btn-primary" disabled={isSavingItem}>
-                  {isSavingItem
-                    ? 'Saving…'
-                    : editingItemId !== null
-                      ? 'Update item'
-                      : 'Add item'}
-                </button>
-                {editingItemId !== null && (
+                <div className="modal-actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+                  <button type="submit" className="btn btn-primary" disabled={isSavingItem}>
+                    {isSavingItem ? 'Saving…' : 'Update item'}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -719,9 +709,14 @@ function BidPreview({ bidId, isAwarded, onAward, onClose, onChanged }: BidPrevie
                   >
                     Cancel edit
                   </button>
-                )}
-              </div>
-            </form>
+                </div>
+              </form>
+            )}
+            {editingItemId === null && (
+              <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+                Bid items must be sourced from quotations. Use the quotation picker to add lines.
+              </p>
+            )}
 
             {/* Quotations — all of this supplier's quotations, since a bid can source lines from
                 any of them (not just ones captured specifically for this bid). */}
