@@ -67,6 +67,7 @@ export interface PurchaseOrderSummary {
   issuerUserName: string;
   currency: string;
   status: PurchaseOrderStatus;
+  notes: string | null;
   totalAmount: number;
   paidAtUtc: string | null;
   deliveredAtUtc: string | null;

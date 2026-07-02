@@ -22,7 +22,10 @@ export interface SupplierBidSummary {
 export interface SupplierBidItem {
   id: number;
   supplierBidId: number;
-  sourceQuotationLineItemId: number | null;
+  /** Backend enforces non-nullable — all bid items must be sourced from a quotation line. */
+  sourceQuotationLineItemId: number;
+  sourceQuotationId: number;
+  sourceQuotationReference: string | null;
   description: string;
   quantity: number;
   unitCost: number;
@@ -60,11 +63,12 @@ export interface CreateSupplierBidItemRequest {
   description: string;
   quantity: number;
   unitCost: number;
-  /** Optional when sourceQuotationLineItemId is set (defaults from that quotation's currency); required otherwise. */
+  /** Defaults from the source quotation's currency; may be omitted when sourceQuotationLineItemId is set. */
   currency?: string | null;
   discountPercentage?: number | null;
   taxPercentage?: number | null;
-  sourceQuotationLineItemId?: number | null;
+  /** Required — all bid items must be sourced from a quotation line. */
+  sourceQuotationLineItemId: number;
 }
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.SupplierBids.UpdateSupplierBidItemRequest. */
