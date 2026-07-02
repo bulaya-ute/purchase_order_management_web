@@ -113,6 +113,7 @@ export function PurchaseOrdersScreen() {
               <thead>
                 <tr>
                   <th>PO number</th>
+                  <th>Description</th>
                   <th>Company</th>
                   <th>For</th>
                   <th>Status</th>
@@ -127,6 +128,17 @@ export function PurchaseOrdersScreen() {
                   <tr key={po.id}>
                     <td>
                       <Link to={`/purchase-orders/${po.id}`}>{po.poNumber}</Link>
+                    </td>
+                    <td
+                      title={po.notes ?? ''}
+                      style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '280px',
+                      }}
+                    >
+                      {po.notes ?? '—'}
                     </td>
                     <td>{po.companyName}</td>
                     <td>{po.targetCompanyName ?? '—'}</td>
