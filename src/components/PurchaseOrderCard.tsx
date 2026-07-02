@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { StatusBadge } from './StatusBadge';
 import type { PurchaseOrderDetail } from '../api/purchaseOrdersApi';
 import type { ApprovalDto } from '../api/approvalsApi';
@@ -57,8 +58,11 @@ export function PurchaseOrderCard({
             <StatusBadge status={po.status} />
           </div>
         </div>
-        <div className="po-meta-label" style={{ textAlign: 'right' }}>
-          Created {formatDate(po.createdAtUtc)}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+          <Link to={`/purchase-orders/${po.id}/print`} className="btn btn-secondary btn-small">
+            Print / Export PDF
+          </Link>
+          <span className="po-meta-label">Created {formatDate(po.createdAtUtc)}</span>
         </div>
       </div>
 
