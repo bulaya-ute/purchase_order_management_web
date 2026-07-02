@@ -15,13 +15,12 @@ import {
 } from '../api/approvalsApi';
 import type { ApprovalDto } from '../api/approvalsApi';
 import { getErrorMessage } from '../api/errorMessage';
-import { BidCard } from '../components/BidCard';
+import { BidComparisonPanel } from '../components/BidComparisonPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { StatusBadge } from '../components/StatusBadge';
+import { PurchaseOrderCard } from '../components/PurchaseOrderCard';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
 import { useAuth } from '../auth/useAuth';
-import { formatDate, formatMoney, formatMoneyVector } from '../utils/format';
 import './admin/admin.css';
 
 export function PurchaseOrderDetailScreen() {
@@ -113,7 +112,10 @@ export function PurchaseOrderDetailScreen() {
       setToast({ kind: 'success', text: 'Purchase order cancelled.' });
       setConfirmCancel(false);
     } catch (err) {
-      setToast({ kind: 'error', text: getErrorMessage(err, 'Failed to cancel the purchase order.') });
+      setToast({
+        kind: 'error',
+        text: getErrorMessage(err, 'Failed to cancel the purchase order.'),
+      });
       setConfirmCancel(false);
     } finally {
       setIsCancelling(false);
@@ -166,16 +168,33 @@ export function PurchaseOrderDetailScreen() {
   // Supplier bid panel derived state.
   const isLocked = (po.attachedSupplierBids ?? []).some((b) => b.isPrimary);
   const isCreator = currentUser?.id === po.issuerUserId;
-  // User is the legal approver if any of their actionable approvals belong to this PO.
-  const isLegalApprover = po.approvals.some((a) => actionableIds.has(a.id));
-  const canSetPrimary =
-    !isLocked &&
-    ((isCreator && po.status === 'Draft') || isLegalApprover);
+
+  // Any approver in the chain (not just current-stage) — for canAward.
+  const isAnyApproverInChain = po.approvals.some((a) => {
+    if (a.requiredUserId !== null) return a.requiredUserId === currentUser?.id;
+    if (a.requiredRoleName !== null)
+      return (currentUser?.roles ?? []).includes(a.requiredRoleName);
+    return false;
+  });
+
+  const canAward = !isLocked && (isCreator || isAnyApproverInChain);
+
   // Approve is blocked when there are attached bids but no primary has been set.
   const hasAttachedBids = (po.attachedSupplierBids ?? []).length > 0;
   const isApproveBlocked = hasAttachedBids && !isLocked;
-  // Map supplierBidId → full bid summary for display in the SB panel.
-  const bidDetailMap = new Map(po.supplierBids.map((b) => [b.id, b]));
+
+  // Pending approval count for the summary badge.
+  const pendingApprovalCount = po.approvals.filter((a) => a.status === 'Pending').length;
+
+  // First pending approver for the "blocked" message.
+  const firstPendingApproval = [...po.approvals]
+    .filter((a) => a.status === 'Pending')
+    .sort((a, b) => a.sequenceOrder - b.sequenceOrder)[0];
+  const firstPendingTarget = firstPendingApproval
+    ? (firstPendingApproval.requiredUserName ??
+      firstPendingApproval.requiredRoleName ??
+      'next approver')
+    : null;
 
   return (
     <section className="po-detail">
@@ -183,329 +202,76 @@ export function PurchaseOrderDetailScreen() {
         ← Back to purchase orders
       </Link>
 
-      <div className="po-detail-header">
-        <h2>{po.poNumber}</h2>
-        <StatusBadge status={po.status} />
-        <Link to={`/purchase-orders/${po.id}/print`} className="btn btn-secondary">
-          Print / Export PDF
-        </Link>
-      </div>
-
-      <div className="admin-panel" style={{ padding: '1rem' }}>
-        <div className="po-meta">
-          <div className="po-meta-item">
-            <span className="po-meta-label">Company</span>
-            <span>{po.companyName}</span>
-          </div>
-          <div className="po-meta-item">
-            <span className="po-meta-label">Issuer</span>
-            <span>{po.issuerUserName}</span>
-          </div>
-          <div className="po-meta-item">
-            <span className="po-meta-label">Currency</span>
-            <span>{po.currency}</span>
-          </div>
-          {po.targetCompanyName && (
-            <div className="po-meta-item">
-              <span className="po-meta-label">For</span>
-              <span>{po.targetCompanyName}</span>
-            </div>
-          )}
-          {po.purchaseOrderTypeName && (
-            <div className="po-meta-item">
-              <span className="po-meta-label">Type</span>
-              <span>{po.purchaseOrderTypeName}</span>
-            </div>
-          )}
-          <div className="po-meta-item">
-            <span className="po-meta-label">Created</span>
-            <span>{formatDate(po.createdAtUtc)}</span>
-          </div>
-        </div>
-
-        <div className="po-chips" style={{ marginTop: '1rem' }}>
-          <span className={`po-chip ${po.paidAtUtc ? 'po-chip-set' : ''}`}>
-            {po.paidAtUtc ? `Paid ${formatDate(po.paidAtUtc)}` : 'Not paid'}
-          </span>
-          <span className={`po-chip ${po.deliveredAtUtc ? 'po-chip-set' : ''}`}>
-            {po.deliveredAtUtc ? `Delivered ${formatDate(po.deliveredAtUtc)}` : 'Not delivered'}
-          </span>
-        </div>
-      </div>
-
-      {/* Totals */}
-      <div className="admin-panel po-section" style={{ padding: '1rem' }}>
-        <h3>Totals</h3>
-        {po.hasMultiCurrencyTotals ? (
-          <div className="po-totals">
-            <div className="po-total-item po-total-grand">
-              <span className="po-meta-label">Total (by currency)</span>
-              <span className="po-total-value" data-testid="po-total">
-                {formatMoneyVector(po.totals)}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="po-totals">
-            <div className="po-total-item">
-              <span className="po-meta-label">Subtotal</span>
-              <span className="po-total-value">{formatMoney(po.subtotal, po.currency)}</span>
-            </div>
-            <div className="po-total-item">
-              <span className="po-meta-label">Tax</span>
-              <span className="po-total-value">{formatMoney(po.taxAmount, po.currency)}</span>
-            </div>
-            <div className="po-total-item po-total-grand">
-              <span className="po-meta-label">Total</span>
-              <span className="po-total-value" data-testid="po-total">
-                {formatMoney(po.totalAmount, po.currency)}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
+      {/* Actions bar */}
       {(canRecordMilestones || canCancel) && (
-        <div className="admin-panel po-section" style={{ padding: '1rem' }}>
-          <h3>Actions</h3>
-          <div className="po-actions">
-            {canRecordMilestones && !po.paidAtUtc && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={isMilestoneBusy}
-                onClick={() =>
-                  void runMilestone(payPurchaseOrder, 'Marked as paid.', 'Failed to mark paid.')
-                }
-              >
-                Mark Paid
-              </button>
-            )}
-            {canRecordMilestones && !po.deliveredAtUtc && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={isMilestoneBusy}
-                onClick={() =>
-                  void runMilestone(
-                    deliverPurchaseOrder,
-                    'Marked as delivered.',
-                    'Failed to mark delivered.',
-                  )
-                }
-              >
-                Mark Delivered
-              </button>
-            )}
-            {canCancel && (
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={isMilestoneBusy}
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancel PO
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Supplier Bids panel */}
-      {((po.attachedSupplierBids ?? []).length > 0 || po.supplierBids.length > 0) && (
-        <div className="admin-panel po-section" style={{ padding: '1rem' }}>
-          <h3>Supplier Bids</h3>
-          {(po.attachedSupplierBids ?? []).length > 0 ? (
-            <>
-              {canSetPrimary && (
-                <p className="form-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
-                  Set the primary bid before approvals can proceed. This action is irreversible.
-                </p>
-              )}
-              {isLocked && (
-                <p className="form-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
-                  The primary bid has been set. This list is now locked.
-                </p>
-              )}
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Supplier</th>
-                    <th>Items</th>
-                    <th>Total</th>
-                    <th>Role</th>
-                    {canSetPrimary && <th aria-label="Actions" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(po.attachedSupplierBids ?? []).map((attached) => {
-                    const detail = bidDetailMap.get(attached.supplierBidId);
-                    return (
-                      <tr key={attached.supplierBidId}>
-                        <td>{detail?.supplierName ?? `Bid #${attached.supplierBidId}`}</td>
-                        <td>{detail?.itemCount ?? '—'}</td>
-                        <td>{detail ? formatMoneyVector(detail.totals) : '—'}</td>
-                        <td>
-                          {attached.isPrimary ? (
-                            <span className="badge badge-success">Primary</span>
-                          ) : (
-                            <span className="badge badge-muted">Alternative</span>
-                          )}
-                        </td>
-                        {canSetPrimary && (
-                          <td>
-                            {!attached.isPrimary && (
-                              <button
-                                type="button"
-                                className="btn btn-small btn-primary"
-                                disabled={busyPrimaryBidId === attached.supplierBidId}
-                                onClick={() => void handleSetPrimary(attached.supplierBidId)}
-                              >
-                                Set as Primary
-                              </button>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </>
-          ) : (
-            <div className="bid-card-grid">
-              {po.supplierBids.map((bid) => (
-                <BidCard
-                  key={bid.id}
-                  bid={bid}
-                  isAwarded={bid.id === po.awardedSupplierBidId}
-                />
-              ))}
-            </div>
+        <div className="po-actions-bar">
+          {canRecordMilestones && !po.paidAtUtc && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={isMilestoneBusy}
+              onClick={() =>
+                void runMilestone(payPurchaseOrder, 'Marked as paid.', 'Failed to mark paid.')
+              }
+            >
+              Mark Paid
+            </button>
+          )}
+          {canRecordMilestones && !po.deliveredAtUtc && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={isMilestoneBusy}
+              onClick={() =>
+                void runMilestone(
+                  deliverPurchaseOrder,
+                  'Marked as delivered.',
+                  'Failed to mark delivered.',
+                )
+              }
+            >
+              Mark Delivered
+            </button>
+          )}
+          {canCancel && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={isMilestoneBusy}
+              onClick={() => setConfirmCancel(true)}
+            >
+              Cancel PO
+            </button>
           )}
         </div>
       )}
 
-      {/* Line items */}
-      <div className="admin-panel po-section" style={{ padding: '1rem' }}>
-        <h3>Line Items</h3>
-        {po.lineItems.length === 0 ? (
-          <div className="admin-empty">
-            No line items yet.
-            {po.supplierBids.length > 0
-              ? ' For a bid-based PO these are created once it is approved.'
-              : ''}
-          </div>
-        ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Unit cost</th>
-                <th>Discount</th>
-                <th>Tax</th>
-                <th>Line total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {po.lineItems.map((li) => (
-                <tr key={li.id}>
-                  <td>{li.description}</td>
-                  <td>{li.quantity}</td>
-                  <td>{formatMoney(li.unitCost, po.currency)}</td>
-                  <td>{formatMoney(li.discountAmount, po.currency)}</td>
-                  <td>{formatMoney(li.taxAmount, po.currency)}</td>
-                  <td>{formatMoney(li.lineTotal, po.currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Bid comparison panel */}
+      {(po.attachedSupplierBids ?? []).length > 0 && (
+        <BidComparisonPanel
+          po={po}
+          canAward={canAward}
+          busyPrimaryBidId={busyPrimaryBidId}
+          onAward={handleSetPrimary}
+          pendingApprovalCount={pendingApprovalCount}
+          firstPendingTarget={firstPendingTarget}
+          isApproveBlocked={isApproveBlocked}
+        />
+      )}
 
-      {/* Approvals */}
-      <div className="admin-panel po-section" style={{ padding: '1rem' }}>
-        <h3>Approvals</h3>
-        {po.approvals.length === 0 ? (
-          <div className="admin-empty">No approvals defined.</div>
-        ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Sequence</th>
-                <th>Status</th>
-                <th>Actor</th>
-                <th>Comment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {po.approvals.map((approval) => {
-                const target =
-                  approval.requiredUserName ??
-                  approval.requiredRoleName ??
-                  (approval.requiredUserId
-                    ? `User #${approval.requiredUserId}`
-                    : approval.requiredRoleId
-                      ? `Role #${approval.requiredRoleId}`
-                      : '—');
-                const canAct = actionableIds.has(approval.id);
-                return (
-                  <tr key={approval.id}>
-                    <td>{target}</td>
-                    <td>{approval.sequenceOrder}</td>
-                    <td>
-                      <StatusBadge status={approval.status} />
-                      {canAct && (
-                        <div className="approval-act">
-                          <textarea
-                            placeholder="Comment (optional)"
-                            value={commentByApproval[approval.id] ?? ''}
-                            onChange={(e) =>
-                              setCommentByApproval((prev) => ({
-                                ...prev,
-                                [approval.id]: e.target.value,
-                              }))
-                            }
-                          />
-                          {isApproveBlocked && (
-                            <span className="form-error" style={{ fontSize: '0.8rem' }}>
-                              A primary Supplier Bid must be set before approving.
-                            </span>
-                          )}
-                          <div className="approval-act-buttons">
-                            <button
-                              type="button"
-                              className="btn btn-small btn-primary"
-                              disabled={busyApprovalId === approval.id || isApproveBlocked}
-                              title={isApproveBlocked ? 'Set a primary Supplier Bid first' : undefined}
-                              onClick={() => void handleApprovalAction(approval, 'approve')}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-small btn-danger"
-                              disabled={busyApprovalId === approval.id}
-                              onClick={() => void handleApprovalAction(approval, 'reject')}
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td>{approval.approvedByUserName ?? '—'}</td>
-                    <td>{approval.comment ?? '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Document card */}
+      <PurchaseOrderCard
+        po={po}
+        actionableIds={actionableIds}
+        commentByApproval={commentByApproval}
+        onCommentChange={(id, val) =>
+          setCommentByApproval((prev) => ({ ...prev, [id]: val }))
+        }
+        onApprovalAction={handleApprovalAction}
+        busyApprovalId={busyApprovalId}
+        isApproveBlocked={isApproveBlocked}
+        currentUser={currentUser}
+      />
 
       {confirmCancel && (
         <ConfirmDialog
