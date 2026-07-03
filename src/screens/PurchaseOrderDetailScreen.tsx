@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import {
   cancelPurchaseOrder,
   deliverPurchaseOrder,
@@ -37,7 +37,7 @@ export function PurchaseOrderDetailScreen() {
   // Inline approve/reject UI state, keyed by approval id.
   const [commentByApproval, setCommentByApproval] = useState<Record<number, string>>({});
   const [busyApprovalId, setBusyApprovalId] = useState<number | null>(null);
-  const [busyPrimaryBidId, setBusyPrimaryBidId] = useState<number | null>(null);
+  const [busyBidId, setBusyBidId] = useState<number | null>(null);
 
   const [isMilestoneBusy, setIsMilestoneBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -123,7 +123,7 @@ export function PurchaseOrderDetailScreen() {
   };
 
   const handleSetPrimary = async (supplierBidId: number) => {
-    setBusyPrimaryBidId(supplierBidId);
+    setBusyBidId(supplierBidId);
     try {
       await setPrimarySupplierBid(poId, supplierBidId);
       setToast({ kind: 'success', text: 'Primary supplier bid set. The bid list is now locked.' });
@@ -131,7 +131,7 @@ export function PurchaseOrderDetailScreen() {
     } catch (err) {
       setToast({ kind: 'error', text: getErrorMessage(err, 'Failed to set the primary bid.') });
     } finally {
-      setBusyPrimaryBidId(null);
+      setBusyBidId(null);
     }
   };
 
@@ -160,9 +160,13 @@ export function PurchaseOrderDetailScreen() {
     );
   }
 
-  // Cancel allowed from Draft/Open/Approved and only while not yet paid (docs/03).
-  const canCancel =
-    (po.status === 'Draft' || po.status === 'Open' || po.status === 'Approved') && !po.paidAtUtc;
+  // Draft POs are fully editable — hand off to the composer screen.
+  if (po.status === 'Draft') {
+    return <Navigate to={`/purchase-orders/${po.id}/edit`} replace />;
+  }
+
+  // Cancel allowed from Open/Approved while not yet paid. Draft is handled by the composer.
+  const canCancel = (po.status === 'Open' || po.status === 'Approved') && !po.paidAtUtc;
   const canRecordMilestones = po.status === 'Approved';
 
   // Supplier bid panel derived state.
@@ -246,18 +250,16 @@ export function PurchaseOrderDetailScreen() {
         </div>
       )}
 
-      {/* Bid comparison panel */}
-      {(po.attachedSupplierBids ?? []).length > 0 && (
-        <BidComparisonPanel
-          po={po}
-          canAward={canAward}
-          busyPrimaryBidId={busyPrimaryBidId}
-          onAward={handleSetPrimary}
-          pendingApprovalCount={pendingApprovalCount}
-          firstPendingTarget={firstPendingTarget}
-          isApproveBlocked={isApproveBlocked}
-        />
-      )}
+      {/* Bid comparison panel — always rendered; shows empty state when no bids attached */}
+      <BidComparisonPanel
+        po={po}
+        canAward={canAward}
+        busyBidId={busyBidId}
+        onAward={handleSetPrimary}
+        pendingApprovalCount={pendingApprovalCount}
+        firstPendingTarget={firstPendingTarget}
+        isApproveBlocked={isApproveBlocked}
+      />
 
       {/* Document card */}
       <PurchaseOrderCard
