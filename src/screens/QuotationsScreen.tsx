@@ -230,7 +230,7 @@ export function QuotationsScreen() {
   };
 
   return (
-    <section className="admin-screen admin-screen--wide">
+    <section className="admin-screen">
       <div className="admin-header">
         <h2>Quotations</h2>
         <div className="admin-filters">

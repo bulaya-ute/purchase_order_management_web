@@ -31,7 +31,7 @@ export function ApprovalsScreen() {
   }, []);
 
   return (
-    <section className="admin-screen admin-screen--wide">
+    <section className="admin-screen">
       <div className="admin-header">
         <h2>Approvals</h2>
       </div>

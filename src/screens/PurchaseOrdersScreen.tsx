@@ -54,7 +54,7 @@ export function PurchaseOrdersScreen() {
   }, []);
 
   return (
-    <section className="admin-screen admin-screen--wide">
+    <section className="admin-screen">
       <div className="admin-header">
         <h2>Purchase Orders</h2>
         <Link to="/purchase-orders/new" className="btn btn-primary">

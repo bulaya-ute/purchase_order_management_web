@@ -125,7 +125,7 @@ export function SupplierBidComposerContent({
   };
 
   return (
-    <section className="admin-screen admin-screen--wide">
+    <section className="admin-screen">
       <div className="admin-header">
         <h2>New Supplier Bid</h2>
         <button type="button" className="po-back-link btn-link" onClick={onCancel}>
