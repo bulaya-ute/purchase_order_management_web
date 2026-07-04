@@ -6,14 +6,57 @@ import { ADMIN, login } from './helpers';
 const API_ORIGIN = 'https://localhost:46258';
 
 /**
- * Seeds a direct-entry PO with one line item and a single user-targeted approval, then submits
- * it (Draft -> Open). Returns the PO id. Rerunnable: each run creates a fresh PO.
+ * Seeds a bid-based PO — a supplier, a quotation, a bid sourcing one line from that quotation,
+ * awarded and attached — plus a single user-targeted approval, then submits it (Draft -> Open).
+ * Returns the PO id. Rerunnable: each run creates fresh entities.
+ *
+ * Manual/direct-entry PO line items no longer exist (removed from the API); every PO is
+ * bid-based, so seeding one for a UI test now requires this full chain.
  */
 async function seedSubmittedPo(api: APIRequestContext): Promise<number> {
   const loginResp = await api.post('/api/auth/login', {
     data: { email: ADMIN.email, password: ADMIN.password },
   });
   expect(loginResp.ok(), `login failed: ${loginResp.status()}`).toBeTruthy();
+
+  const supplierResp = await api.post('/api/suppliers', {
+    data: {
+      supplierName: `E2E Operate Supplier ${Date.now()}`,
+      phone: '555-0166',
+      email: 'e2e-operate-supplier@example.com',
+      address: '1 Operate Way',
+    },
+  });
+  expect(supplierResp.ok(), `create supplier failed: ${supplierResp.status()}`).toBeTruthy();
+  const supplier = (await supplierResp.json()) as { id: number };
+
+  const fileResp = await api.post('/api/files', {
+    multipart: {
+      file: {
+        name: 'operate-quote.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('Sample quotation file for the operate e2e test.'),
+      },
+    },
+  });
+  expect(fileResp.ok(), `file upload failed: ${fileResp.status()}`).toBeTruthy();
+  const file = (await fileResp.json()) as { id: number };
+
+  const quotationResp = await api.post('/api/quotations', {
+    data: {
+      supplierId: supplier.id,
+      fileId: file.id,
+      quoteReference: 'Operate Quote',
+      quoteDate: new Date().toISOString(),
+      currency: 'ZMW',
+      lineItems: [{ description: 'E2E widget', quantity: 2, unitCost: 50 }],
+    },
+  });
+  expect(quotationResp.ok(), `create quotation failed: ${quotationResp.status()}`).toBeTruthy();
+  const quotation = (await quotationResp.json()) as {
+    lineItems: { id: number; description: string; quantity: number; unitCost: number }[];
+  };
+  const quotationLine = quotation.lineItems[0];
 
   // ZMW is the only active currency seeded — USD exists but is inactive and is rejected server-side.
   const createResp = await api.post('/api/purchase-orders', {
@@ -22,10 +65,33 @@ async function seedSubmittedPo(api: APIRequestContext): Promise<number> {
   expect(createResp.ok(), `create PO failed: ${createResp.status()}`).toBeTruthy();
   const po = (await createResp.json()) as { id: number };
 
-  const lineResp = await api.post(`/api/purchase-orders/${po.id}/line-items`, {
-    data: { description: 'E2E widget', quantity: 2, unitCost: 50 },
+  const bidResp = await api.post(`/api/purchase-orders/${po.id}/bids`, {
+    data: { supplierId: supplier.id },
   });
-  expect(lineResp.ok(), `add line item failed: ${lineResp.status()}`).toBeTruthy();
+  expect(bidResp.ok(), `create bid failed: ${bidResp.status()}`).toBeTruthy();
+  const bid = (await bidResp.json()) as { id: number };
+
+  // createBid only sets SupplierBid.PurchaseOrderId — it doesn't register the
+  // PurchaseOrderSupplierBids attachment row that Submit's "has attached bids" check reads.
+  const attachResp = await api.post(`/api/purchase-orders/${po.id}/supplier-bids`, {
+    data: { supplierBidId: bid.id },
+  });
+  expect(attachResp.ok(), `attach bid failed: ${attachResp.status()}`).toBeTruthy();
+
+  const itemResp = await api.post(`/api/supplier-bids/${bid.id}/items`, {
+    data: {
+      description: quotationLine.description,
+      quantity: quotationLine.quantity,
+      unitCost: quotationLine.unitCost,
+      sourceQuotationLineItemId: quotationLine.id,
+    },
+  });
+  expect(itemResp.ok(), `add bid item failed: ${itemResp.status()}`).toBeTruthy();
+
+  const awardResp = await api.post(`/api/purchase-orders/${po.id}/awarded-bid`, {
+    data: { supplierBidId: bid.id },
+  });
+  expect(awardResp.ok(), `award bid failed: ${awardResp.status()}`).toBeTruthy();
 
   const approvalResp = await api.post(`/api/purchase-orders/${po.id}/approvals`, {
     data: { requiredUserId: 1, sequenceOrder: 0 },

@@ -55,47 +55,42 @@ test('standalone quotation + standalone bid + attach to a Draft PO, with a multi
 
   await login(page);
 
-  // ----- Create a standalone quotation via the Quotations library screen. -----
+  // ----- Create two standalone quotations (one per currency) via the Quotations library screen. -----
   await page.getByRole('link', { name: 'Quotations' }).click();
   await expect(page).toHaveURL(/\/quotations$/);
-  await page.getByRole('button', { name: 'New Quotation' }).click();
 
-  await page.selectOption('#quotation-supplier', { label: supplier.name });
+  for (const [reference, currency, description, unitCost] of [
+    ['ZMW Library Quote', 'ZMW', 'E2E library ZMW widget', '60'],
+    ['USD Library Quote', 'USD', 'E2E library USD widget', '40'],
+  ] as const) {
+    await page.getByRole('button', { name: 'New Quotation' }).click();
+    await page.selectOption('#quotation-supplier', { label: supplier.name });
+    await page.fill('#quotation-reference', reference);
+    await page.selectOption('#quotation-currency', currency);
 
-  const tmpFile = path.join(os.tmpdir(), `e2e-library-quotation-${Date.now()}.txt`);
-  const tmpFileName = path.basename(tmpFile);
-  fs.writeFileSync(tmpFile, 'Sample quotation document content for the library e2e test.');
-  const quotationDialog = page.getByRole('dialog', { name: 'New Quotation' });
-  try {
-    await page.setInputFiles('input[type="file"]', tmpFile);
-    await expect(quotationDialog.getByText(tmpFileName)).toBeVisible();
+    const tmpFile = path.join(os.tmpdir(), `e2e-library-quotation-${Date.now()}-${currency}.txt`);
+    const tmpFileName = path.basename(tmpFile);
+    fs.writeFileSync(tmpFile, 'Sample quotation document content for the library e2e test.');
+    const quotationDialog = page.getByRole('dialog', { name: 'New Quotation' });
+    try {
+      await page.setInputFiles('input[type="file"]', tmpFile);
+      await expect(quotationDialog.getByText(tmpFileName)).toBeVisible();
 
-    await page.fill('#quotation-line-description-0', 'E2E library quoted widget');
-    await page.fill('#quotation-line-quantity-0', '2');
-    await page.fill('#quotation-line-unit-cost-0', '15');
+      await page.fill('#add-line-description', description);
+      await page.fill('#add-line-qty', '1');
+      await page.fill('#add-line-unit-cost', unitCost);
+      await page.getByRole('button', { name: 'Add line' }).click();
+      await expect(quotationDialog.getByText(description)).toBeVisible();
 
-    await page.getByRole('button', { name: 'Save quotation' }).click();
-    await expect(page.getByText('Quotation created.')).toBeVisible();
-    await expect(page.getByRole('cell', { name: supplier.name }).first()).toBeVisible();
-  } finally {
-    fs.rmSync(tmpFile, { force: true });
+      await page.getByRole('button', { name: 'Save quotation' }).click();
+      await expect(page.getByText('Quotation created.')).toBeVisible();
+    } finally {
+      fs.rmSync(tmpFile, { force: true });
+    }
   }
 
-  // ----- Create a standalone bid via the Supplier Bids composer screen. -----
-  await page.getByRole('link', { name: 'Supplier Bids' }).click();
-  await expect(page).toHaveURL(/\/supplier-bids$/);
-  await page.getByRole('button', { name: '+ New bid' }).click();
-  await expect(page).toHaveURL(/\/supplier-bids\/new$/);
-  await page.selectOption('#bid-composer-supplier', { label: supplier.name });
-  await expect(page.getByRole('heading', { name: `${supplier.name} — bid items` })).toBeVisible();
-  await page.getByRole('button', { name: 'Done' }).click();
-  await expect(page).toHaveURL(/\/supplier-bids$/);
-
-  // The new bid appears in the table as Unattached.
-  const bidRow = page.locator('tr', { has: page.getByRole('cell', { name: supplier.name }) });
-  await expect(bidRow.getByText('Unattached')).toBeVisible();
-
-  // ----- Create a Draft PO and attach the standalone bid to it. -----
+  // ----- Create a Draft PO, start a new bid for the supplier, and check one line from each
+  // quotation to produce a genuinely multi-currency bid. -----
   await page.getByRole('link', { name: 'Purchase Orders' }).click();
   await expect(page).toHaveURL(/\/purchase-orders$/);
   await page.getByRole('link', { name: 'New PO' }).click();
@@ -104,48 +99,37 @@ test('standalone quotation + standalone bid + attach to a Draft PO, with a multi
   await page.selectOption('#po-company', { label: 'Head Office' });
   await page.selectOption('#po-currency', 'ZMW');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/purchase-orders\/\d+\/edit$/);
+  await expect(page).toHaveURL(/\/purchase-orders\/\d+$/);
 
-  await page.selectOption('#attach-bid-supplier', { label: supplier.name });
-  // The option label is "<supplier name> — <money vector>" so match by prefix via the DOM
-  // rather than selectOption's exact-label matching.
-  const attachOptionValue = await page
-    .locator('#attach-bid-id option', { hasText: supplier.name })
-    .first()
-    .getAttribute('value');
-  await page.selectOption('#attach-bid-id', attachOptionValue ?? '');
-  await page.getByRole('button', { name: 'Attach bid' }).click();
-  await expect(page.getByText('Bid attached.')).toBeVisible();
-  await expect(page.locator('.bid-card-name', { hasText: supplier.name })).toBeVisible();
+  await page.getByRole('button', { name: '+ Add bid' }).click();
+  const addBidDialog = page.getByRole('dialog', { name: 'Add supplier bid' });
+  await addBidDialog.getByRole('combobox', { name: 'Supplier' }).selectOption({ label: supplier.name });
+  await addBidDialog.getByRole('button', { name: /Start a new bid/ }).click();
+  await expect(page.getByText('New supplier bid started.')).toBeVisible();
 
-  // ----- Open the attached bid and add two items in different currencies. -----
-  await page.locator('.bid-card', { hasText: supplier.name }).click();
-  await expect(page.getByRole('dialog', { name: 'Bid preview' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Add a quotation' }).click();
+  await page.getByText('ZMW Library Quote').click();
+  await page.getByRole('button', { name: 'Add quotation' }).click();
+  await page.getByRole('button', { name: '+ Add a quotation' }).click();
+  await page.getByText('USD Library Quote').click();
+  await page.getByRole('button', { name: 'Add quotation' }).click();
 
-  await page.fill('#bid-item-description', 'USD item');
-  await page.fill('#bid-item-quantity', '1');
-  await page.fill('#bid-item-unit-cost', '40');
-  await page.selectOption('#bid-item-currency', 'USD');
-  await page.getByRole('button', { name: 'Add item' }).click();
-  await expect(page.getByText('Bid item added.')).toBeVisible();
+  // Checking a line calls addBidItem asynchronously and the checkbox re-renders once the bid
+  // refreshes, so click rather than check (check's built-in post-click state assertion can race
+  // the refresh) and assert the resulting state explicitly afterward.
+  await page.locator('tr', { hasText: 'E2E library ZMW widget' }).locator('input[type="checkbox"]').click();
+  await expect(
+    page.locator('tr', { hasText: 'E2E library ZMW widget' }).locator('input[type="checkbox"]'),
+  ).toBeChecked();
+  await page.locator('tr', { hasText: 'E2E library USD widget' }).locator('input[type="checkbox"]').click();
+  await expect(
+    page.locator('tr', { hasText: 'E2E library USD widget' }).locator('input[type="checkbox"]'),
+  ).toBeChecked();
 
-  await page.fill('#bid-item-description', 'ZMW item');
-  await page.fill('#bid-item-quantity', '1');
-  await page.fill('#bid-item-unit-cost', '60');
-  await page.selectOption('#bid-item-currency', 'ZMW');
-  await page.getByRole('button', { name: 'Add item' }).click();
-  await expect(page.getByText('Bid item added.')).toBeVisible();
-
-  // The bid total in the preview header is a multi-currency vector joined by " + ". USD renders
-  // via its currency symbol ($) per formatMoney's Intl.NumberFormat, ZMW renders with its code.
-  const bidTotalLocator = page.locator('.po-meta-item', { hasText: 'Bid total' });
-  await expect(bidTotalLocator).toContainText('$40.00');
-  await expect(bidTotalLocator).toContainText('ZMW');
-  await expect(bidTotalLocator).toContainText('+');
-
-  await page.getByRole('button', { name: 'Close' }).click();
-
-  // The bid card on the composer's grid also renders the same multi-currency vector.
-  const bidCardTotal = page.locator('.bid-card-total', { hasText: '+' });
-  await expect(bidCardTotal).toBeVisible();
+  // The bid card's total in the row is a multi-currency vector joined by " + ". USD renders via
+  // its currency symbol ($) per formatMoney's Intl.NumberFormat, ZMW renders with its code.
+  const bidCardTotal = page.locator('[role="radio"]', { hasText: supplier.name });
+  await expect(bidCardTotal).toContainText('$40.00');
+  await expect(bidCardTotal).toContainText('ZMW');
+  await expect(bidCardTotal).toContainText('+');
 });

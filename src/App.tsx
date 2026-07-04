@@ -36,7 +36,10 @@ function App() {
               <Route path="/" element={<DashboardScreen />} />
               <Route path="/purchase-orders" element={<PurchaseOrdersScreen />} />
               <Route path="/purchase-orders/new" element={<PurchaseOrderComposerScreen />} />
-              <Route path="/purchase-orders/:id/edit" element={<PurchaseOrderComposerScreen />} />
+              <Route
+                path="/purchase-orders/:id/edit"
+                element={<Navigate to=".." relative="path" replace />}
+              />
               <Route path="/purchase-orders/:id/print" element={<PurchaseOrderPrintScreen />} />
               <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailScreen />} />
               <Route path="/approvals" element={<ApprovalsScreen />} />

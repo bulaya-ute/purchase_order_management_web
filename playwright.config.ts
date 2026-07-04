@@ -19,9 +19,11 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: 'dotnet run --no-launch-profile --urls https://localhost:29739',
+      // HTTP, matching vite.config.ts's proxy target and docs/01-setup.md — the SPA's /api
+      // calls are proxied to this same origin, so it must speak the protocol the proxy expects.
+      command: 'dotnet run --no-launch-profile --urls http://localhost:29739',
       cwd: '../purchase_order_management_api/PurchaseOrderManagement.Api',
-      url: 'https://localhost:29739/swagger/index.html',
+      url: 'http://localhost:29739/swagger/index.html',
       timeout: 180_000,
       reuseExistingServer: true,
       ignoreHTTPSErrors: true,

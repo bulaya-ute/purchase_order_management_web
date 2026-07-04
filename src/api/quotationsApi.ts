@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import { buildQueryString } from './types';
+import type { PagedQuery, PagedResult } from './types';
 import type { UploadedFile } from './filesApi';
+import { cachedFetch } from '../utils/requestCache';
 
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationLineItemDto. */
 export interface QuotationLineItem {
@@ -80,19 +82,26 @@ export interface CreateQuotationRequest {
   lineItems: CreateQuotationLineItemRequest[];
 }
 
-/** Mirrors the QuotationsController query string (supplierId/isExpired/isUsed all optional). */
-export interface QuotationListQuery {
+/** Mirrors PurchaseOrderManagement.Api.Dtos.Quotations.QuotationListQuery. */
+export interface QuotationListQuery extends PagedQuery {
   supplierId?: number;
   isExpired?: boolean;
   isUsed?: boolean;
+  /** Case-insensitive search across QuoteReference, Description, Notes, and the supplier's name. */
+  search?: string;
 }
 
-export function listQuotations(query: QuotationListQuery = {}): Promise<QuotationSummary[]> {
-  return apiClient.get<QuotationSummary[]>(`/quotations${buildQueryString(query)}`);
+export function listQuotations(
+  query: QuotationListQuery = {},
+): Promise<PagedResult<QuotationSummary>> {
+  return apiClient.get<PagedResult<QuotationSummary>>(`/quotations${buildQueryString(query)}`);
 }
 
+/** Cached (60s TTL) — reused across the preview pane and column 2's quotation cards. */
 export function getQuotation(quotationId: number): Promise<Quotation> {
-  return apiClient.get<Quotation>(`/quotations/${quotationId}`);
+  return cachedFetch(`quotation-${quotationId}`, () =>
+    apiClient.get<Quotation>(`/quotations/${quotationId}`),
+  );
 }
 
 export function createQuotation(request: CreateQuotationRequest): Promise<Quotation> {

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { scoreMatch } from '../utils/search';
+import { useCallback, useEffect, useState } from 'react';
 import { createQuotation, listQuotations } from '../api/quotationsApi';
 import type { QuotationListQuery, QuotationSummary } from '../api/quotationsApi';
 import type { CreateQuotationRequest } from '../api/quotationsApi';
@@ -10,6 +9,7 @@ import type { Currency } from '../api/currenciesApi';
 import { getErrorMessage } from '../api/errorMessage';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
+import { Pagination } from '../components/Pagination';
 import { QuotationFormModal } from './QuotationFormModal';
 import { formatDate } from '../utils/format';
 import './admin/admin.css';
@@ -146,7 +146,11 @@ export function QuotationsScreen() {
   const [supplierFilter, setSupplierFilter] = useState<number | ''>('');
   const [expiredFilter, setExpiredFilter] = useState<ExpiredFilter>('');
   const [usedFilter, setUsedFilter] = useState<UsedFilter>('');
-  const [searchText, setSearchText] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -159,22 +163,36 @@ export function QuotationsScreen() {
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
+  // Debounce the search box; changing the settled search text resets to page 1.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
     try {
       const query: QuotationListQuery = {
+        page,
+        pageSize,
         supplierId: supplierFilter || undefined,
         isExpired: expiredFilter === '' ? undefined : expiredFilter === 'expired',
         isUsed: usedFilter === '' ? undefined : usedFilter === 'used',
+        search: search || undefined,
       };
-      setQuotations(await listQuotations(query));
+      const result = await listQuotations(query);
+      setQuotations(result.items);
+      setTotalCount(result.totalCount);
     } catch (err) {
       setLoadError(getErrorMessage(err, 'Failed to load quotations.'));
     } finally {
       setIsLoading(false);
     }
-  }, [supplierFilter, expiredFilter, usedFilter]);
+  }, [page, pageSize, supplierFilter, expiredFilter, usedFilter, search]);
 
   useEffect(() => {
     void load();
@@ -188,18 +206,6 @@ export function QuotationsScreen() {
       .then(setCurrencies)
       .catch(() => setCurrencies([]));
   }, []);
-
-  const filtered = useMemo(() => {
-    const scored = quotations.map((q) => ({
-      item: q,
-      score: scoreMatch(searchText, [q.supplierName, q.description, q.quoteReference, q.notes]),
-    }));
-    if (scored[0]?.score === -1) return quotations; // empty query sentinel
-    return scored
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((x) => x.item);
-  }, [quotations, searchText]);
 
   const openCreate = () => {
     setFormError(null);
@@ -230,9 +236,9 @@ export function QuotationsScreen() {
         <div className="admin-filters">
           <input
             type="search"
-            placeholder="Search supplier, reference, notes…"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search reference, description, notes, supplier…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             style={{ minWidth: '220px' }}
           />
 
@@ -240,7 +246,10 @@ export function QuotationsScreen() {
           <select
             id="quotation-supplier-filter"
             value={supplierFilter}
-            onChange={(e) => setSupplierFilter(e.target.value ? Number(e.target.value) : '')}
+            onChange={(e) => {
+              setSupplierFilter(e.target.value ? Number(e.target.value) : '');
+              setPage(1);
+            }}
           >
             <option value="">All</option>
             {suppliers.map((s) => (
@@ -254,7 +263,10 @@ export function QuotationsScreen() {
           <select
             id="quotation-expired-filter"
             value={expiredFilter}
-            onChange={(e) => setExpiredFilter(e.target.value as ExpiredFilter)}
+            onChange={(e) => {
+              setExpiredFilter(e.target.value as ExpiredFilter);
+              setPage(1);
+            }}
           >
             <option value="">All</option>
             <option value="active">Active / no expiry</option>
@@ -265,7 +277,10 @@ export function QuotationsScreen() {
           <select
             id="quotation-used-filter"
             value={usedFilter}
-            onChange={(e) => setUsedFilter(e.target.value as UsedFilter)}
+            onChange={(e) => {
+              setUsedFilter(e.target.value as UsedFilter);
+              setPage(1);
+            }}
           >
             <option value="">All</option>
             <option value="used">Used</option>
@@ -284,9 +299,9 @@ export function QuotationsScreen() {
           <div className="admin-error" role="alert">
             {loadError}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : quotations.length === 0 ? (
           <div className="admin-empty">
-            {searchText && quotations.length > 0 ? 'No quotations match your search.' : 'No quotations found.'}
+            {search ? `No results for "${search}".` : 'No quotations found.'}
           </div>
         ) : (
           <table className="admin-table">
@@ -304,7 +319,7 @@ export function QuotationsScreen() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((q) => (
+              {quotations.map((q) => (
                 <tr key={q.id}>
                   <td>{q.supplierName}</td>
                   <td>{q.description ?? '—'}</td>
@@ -347,6 +362,19 @@ export function QuotationsScreen() {
           </table>
         )}
       </div>
+
+      {!isLoading && !loadError && totalCount > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
+      )}
 
       {isFormOpen && (
         <QuotationFormModal

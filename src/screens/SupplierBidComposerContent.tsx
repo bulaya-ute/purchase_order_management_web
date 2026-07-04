@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addBidItem,
   createBid,
@@ -8,14 +8,14 @@ import {
   updateBidItem,
 } from '../api/bidsApi';
 import type { SupplierBidDetail } from '../api/bidsApi';
-import { getQuotation, listQuotations } from '../api/quotationsApi';
-import type { Quotation, QuotationSummary } from '../api/quotationsApi';
+import { getQuotation } from '../api/quotationsApi';
+import type { Quotation } from '../api/quotationsApi';
 import { listSuppliers } from '../api/suppliersApi';
 import type { Supplier } from '../api/suppliersApi';
 import { getErrorMessage } from '../api/errorMessage';
+import { QuotationBrowserPanel } from '../components/QuotationBrowserPanel';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
-import { scoreMatch } from '../utils/search';
 import { formatDate, formatMoney, formatMoneyVector } from '../utils/format';
 import './admin/admin.css';
 
@@ -49,51 +49,14 @@ export function SupplierBidComposerContent({
   // Guards against rapid supplier switching double-creating a bid for the same selection.
   const creationInFlight = useRef(false);
 
-  const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
-  // Each quotation's line items, keyed by quotation id, fetched alongside the summary list so the
-  // "N lines in this bid" chip can cross-reference sourceQuotationLineItemId without waiting for
-  // the picker modal to be opened.
-  const [quotationLineIds, setQuotationLineIds] = useState<Map<number, Set<number>>>(new Map());
-  const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
-
-  const [quotationSearch, setQuotationSearch] = useState('');
   const [openQuotationId, setOpenQuotationId] = useState<number | null>(null);
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
-
-  const filteredQuotations = useMemo(() => {
-    const scored = quotations.map((q) => ({
-      q,
-      score: scoreMatch(quotationSearch, [q.supplierName, q.description, q.quoteReference]),
-    }));
-    if (scored.every((s) => s.score === -1)) return quotations;
-    return scored
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((s) => s.q);
-  }, [quotations, quotationSearch]);
 
   useEffect(() => {
     listSuppliers({ page: 1, pageSize: 200 })
       .then((result) => setSuppliers(result.items))
       .catch(() => setSuppliers([]));
-  }, []);
-
-  const loadQuotations = useCallback(async (forSupplierId: number) => {
-    setIsLoadingQuotations(true);
-    try {
-      const summaries = await listQuotations({ supplierId: forSupplierId });
-      setQuotations(summaries);
-      const details = await Promise.all(summaries.map((q) => getQuotation(q.id)));
-      setQuotationLineIds(
-        new Map(details.map((d) => [d.id, new Set(d.lineItems.map((li) => li.id))])),
-      );
-    } catch {
-      setQuotations([]);
-      setQuotationLineIds(new Map());
-    } finally {
-      setIsLoadingQuotations(false);
-    }
   }, []);
 
   const refreshBid = useCallback(async (bidId: number) => {
@@ -108,7 +71,6 @@ export function SupplierBidComposerContent({
   const handleSupplierChange = async (value: string) => {
     setSupplierId(value);
     setBid(null);
-    setQuotations([]);
     setCreateError(null);
     if (!value || creationInFlight.current) return;
 
@@ -120,7 +82,6 @@ export function SupplierBidComposerContent({
         ? await createBid(purchaseOrderId, { supplierId: newSupplierId })
         : await createStandaloneBid({ supplierId: newSupplierId });
       setBid(created);
-      void loadQuotations(newSupplierId);
     } catch (err) {
       setCreateError(getErrorMessage(err, 'Failed to create the bid.'));
     } finally {
@@ -200,61 +161,13 @@ export function SupplierBidComposerContent({
       {bid && (
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
           {/* Left column: quotations to source lines from. */}
-          <div className="admin-panel" style={{ flex: '1 1 360px', padding: '1rem' }}>
+          <div className="admin-panel" style={{ flex: '3 1 640px', padding: '1rem' }}>
             <h3 style={{ marginTop: 0 }}>Quotations</h3>
-            {isLoadingQuotations ? (
-              <div className="admin-loading">Loading quotations…</div>
-            ) : quotations.length === 0 ? (
-              <div className="admin-empty">No quotations captured for this supplier yet.</div>
-            ) : (
-              <>
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <input
-                    type="search"
-                    value={quotationSearch}
-                    onChange={(e) => setQuotationSearch(e.target.value)}
-                    placeholder="Search quotations…"
-                    style={{ width: '100%', padding: '0.45rem 0.65rem', fontSize: '0.88rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
-                  />
-                </div>
-                {filteredQuotations.length === 0 ? (
-                  <div className="admin-empty">No quotations match your search.</div>
-                ) : (
-                <div className="bid-card-grid">
-                {filteredQuotations.map((q) => {
-                  const lineIds = quotationLineIds.get(q.id);
-                  const linesInBid = bid.items.filter(
-                    (item) => lineIds?.has(item.sourceQuotationLineItemId),
-                  ).length;
-                  return (
-                    <button
-                      key={q.id}
-                      type="button"
-                      className="bid-card bid-card-clickable"
-                      onClick={() => setOpenQuotationId(q.id)}
-                    >
-                      <span className="bid-card-name">{q.quoteReference ?? `Quote #${q.id}`}</span>
-                      {q.description && (
-                        <span className="bid-card-meta">{q.description}</span>
-                      )}
-                      <span className="bid-card-meta">{formatDate(q.quoteDate)}</span>
-                      <div className="bid-card-badges">
-                        {q.isExpired ? (
-                          <span className="badge badge-danger">Expired</span>
-                        ) : q.expiresAtUtc ? (
-                          <span className="badge badge-warning">Expires {formatDate(q.expiresAtUtc)}</span>
-                        ) : null}
-                        <span className="badge badge-muted">
-                          Used {linesInBid}/{q.lineItemCount} line{q.lineItemCount === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-                )}
-              </>
-            )}
+            <QuotationBrowserPanel
+              supplierId={bid.supplierId}
+              actionLabel="Open lines"
+              onAction={(q) => setOpenQuotationId(q.id)}
+            />
           </div>
 
           {/* Right column: live bid items. */}

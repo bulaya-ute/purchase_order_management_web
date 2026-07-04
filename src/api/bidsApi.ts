@@ -2,6 +2,9 @@ import { apiClient } from './client';
 import { buildQueryString } from './types';
 import type { CurrencyTotal } from './types';
 
+/** Mirrors PurchaseOrderManagement.Api.Enums.SupplierBidStatus. Draft = editable. Locked once the PO it's attached to is submitted. */
+export type SupplierBidStatus = 'Draft' | 'Locked';
+
 /** Mirrors PurchaseOrderManagement.Api.Dtos.SupplierBids.SupplierBidSummaryDto. */
 export interface SupplierBidSummary {
   id: number;
@@ -10,6 +13,7 @@ export interface SupplierBidSummary {
   supplierId: number;
   supplierName: string;
   notes: string | null;
+  status: SupplierBidStatus;
   /** Per-currency totals across the bid's items. Never converted/combined. */
   totals: CurrencyTotal[];
   itemCount: number;
@@ -46,6 +50,7 @@ export interface SupplierBidDetail {
   supplierId: number;
   supplierName: string;
   notes: string | null;
+  status: SupplierBidStatus;
   totals: CurrencyTotal[];
   itemCount: number;
   items: SupplierBidItem[];

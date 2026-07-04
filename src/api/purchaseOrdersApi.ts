@@ -26,25 +26,6 @@ export interface UpdatePurchaseOrderRequest {
   rowVersion?: string | null;
 }
 
-/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.CreatePurchaseOrderLineItemRequest. */
-export interface CreatePurchaseOrderLineItemRequest {
-  description: string;
-  quantity: number;
-  unitCost: number;
-  discountPercentage?: number | null;
-  taxPercentage?: number | null;
-}
-
-/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.UpdatePurchaseOrderLineItemRequest. */
-export interface UpdatePurchaseOrderLineItemRequest {
-  description: string;
-  quantity: number;
-  unitCost: number;
-  discountPercentage?: number | null;
-  taxPercentage?: number | null;
-  rowVersion?: string | null;
-}
-
 /** Mirrors PurchaseOrderManagement.Api.Dtos.Approvals.CreateApprovalDefinitionRequest. */
 export interface CreateApprovalDefinitionRequest {
   requiredRoleId?: number | null;
@@ -74,11 +55,18 @@ export interface PurchaseOrderSummary {
   createdAtUtc: string;
 }
 
-/** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderLineItemDto. */
+/**
+ * Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderLineItemDto. Only ever
+ * created server-side (copied from the awarded SupplierBid's items when the PO is fully
+ * approved) — there is no client-side create/update/delete for these anymore. Shown only on
+ * PurchaseOrderPrintScreen; the detail screen always shows bid composition data instead.
+ */
 export interface PurchaseOrderLineItem {
   id: number;
   purchaseOrderId: number;
   sourceSupplierBidItemId: number | null;
+  sourceQuotationId: number;
+  sourceQuotationLineItemId: number;
   description: string;
   quantity: number;
   unitCost: number;
@@ -95,7 +83,6 @@ export interface PurchaseOrderLineItem {
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.PurchaseOrderSupplierBidDto. */
 export interface PurchaseOrderAttachedBid {
   supplierBidId: number;
-  isPrimary: boolean;
   addedAtUtc: string;
 }
 
@@ -166,28 +153,6 @@ export function updatePurchaseOrder(
   return apiClient.put<PurchaseOrderDetail>(`/purchase-orders/${id}`, request);
 }
 
-export function addLineItem(
-  id: number,
-  request: CreatePurchaseOrderLineItemRequest,
-): Promise<PurchaseOrderLineItem> {
-  return apiClient.post<PurchaseOrderLineItem>(`/purchase-orders/${id}/line-items`, request);
-}
-
-export function updateLineItem(
-  id: number,
-  lineItemId: number,
-  request: UpdatePurchaseOrderLineItemRequest,
-): Promise<PurchaseOrderLineItem> {
-  return apiClient.put<PurchaseOrderLineItem>(
-    `/purchase-orders/${id}/line-items/${lineItemId}`,
-    request,
-  );
-}
-
-export function deleteLineItem(id: number, lineItemId: number): Promise<void> {
-  return apiClient.delete<void>(`/purchase-orders/${id}/line-items/${lineItemId}`);
-}
-
 export function addApprovalDefinition(
   id: number,
   request: CreateApprovalDefinitionRequest,
@@ -218,11 +183,9 @@ export function cancelPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
 export function attachSupplierBid(
   poId: number,
   supplierBidId: number,
-  isPrimary: boolean,
 ): Promise<PurchaseOrderDetail> {
   return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${poId}/supplier-bids`, {
     supplierBidId,
-    isPrimary,
   });
 }
 
@@ -230,17 +193,12 @@ export function detachSupplierBid(poId: number, supplierBidId: number): Promise<
   return apiClient.delete<void>(`/purchase-orders/${poId}/supplier-bids/${supplierBidId}`);
 }
 
-export function setPrimarySupplierBid(poId: number, supplierBidId: number): Promise<void> {
-  return apiClient.patch<void>(
-    `/purchase-orders/${poId}/supplier-bids/${supplierBidId}/set-primary`,
-  );
-}
-
 /** Mirrors PurchaseOrderManagement.Api.Dtos.PurchaseOrders.SelectAwardedBidRequest. */
 export interface SelectAwardedBidRequest {
   supplierBidId: number;
 }
 
+/** The sole award mechanism — sets PurchaseOrder.AwardedSupplierBidId. */
 export function setAwardedBid(
   id: number,
   supplierBidId: number,
@@ -248,4 +206,8 @@ export function setAwardedBid(
   return apiClient.post<PurchaseOrderDetail>(`/purchase-orders/${id}/awarded-bid`, {
     supplierBidId,
   } satisfies SelectAwardedBidRequest);
+}
+
+export function unawardPurchaseOrder(id: number): Promise<PurchaseOrderDetail> {
+  return apiClient.delete<PurchaseOrderDetail>(`/purchase-orders/${id}/awarded-bid`);
 }

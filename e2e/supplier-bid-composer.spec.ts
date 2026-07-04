@@ -67,39 +67,47 @@ test('supplier bid composer: create a standalone bid and source lines from two q
   await page.getByRole('link', { name: 'Supplier Bids' }).click();
   await expect(page).toHaveURL(/\/supplier-bids$/);
   await page.getByRole('button', { name: '+ New bid' }).click();
-  await expect(page).toHaveURL(/\/supplier-bids\/new$/);
+  // "+ New bid" opens SupplierBidComposerModal as a full-screen overlay in place — it does not
+  // navigate to a separate route.
+  await expect(page).toHaveURL(/\/supplier-bids$/);
 
   await page.selectOption('#bid-composer-supplier', { label: supplier.name });
   await expect(page.getByRole('heading', { name: `${supplier.name} — bid items` })).toBeVisible();
 
-  // Open "Quote A", add its one line.
-  await page.locator('.bid-card', { hasText: 'Quote A' }).click();
+  // Quotations are browsed via the shared QuotationBrowserPanel: a paginated, searchable table
+  // on the left with a preview pane and an "Open lines" action on the right, rather than a
+  // clickable card grid.
+  await page.getByText('Quote A').click();
+  await page.getByRole('button', { name: 'Open lines' }).click();
   await expect(page.getByRole('dialog', { name: 'Quotation line items' })).toBeVisible();
   await page.locator('input[type="checkbox"][aria-label="Add Quote A widget to bid"]').click();
   await expect(page.locator('input[type="checkbox"][aria-label="Remove Quote A widget from bid"]')).toBeChecked();
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   // Open "Quote B", add its one line.
-  await page.locator('.bid-card', { hasText: 'Quote B' }).click();
+  await page.getByText('Quote B').click();
+  await page.getByRole('button', { name: 'Open lines' }).click();
   await expect(page.getByRole('dialog', { name: 'Quotation line items' })).toBeVisible();
   await page.locator('input[type="checkbox"][aria-label="Add Quote B widget to bid"]').click();
   await expect(page.locator('input[type="checkbox"][aria-label="Remove Quote B widget from bid"]')).toBeChecked();
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
-  // Both lines now show in the right column; "N lines in this bid" chip reflects each quotation.
-  await expect(page.getByRole('cell', { name: 'Quote A widget' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Quote B widget' })).toBeVisible();
-  await expect(page.locator('.bid-card', { hasText: 'Quote A' }).getByText('1 line in this bid')).toBeVisible();
+  // Both lines now show in the bid items table (distinct from the browser panel's preview pane,
+  // which can also list a quotation's lines by description — scope to the table with a "Line
+  // total" column to avoid matching both).
+  const bidItemsTable = page.locator('table', { hasText: 'Line total' });
+  await expect(bidItemsTable.getByRole('cell', { name: 'Quote A widget' })).toBeVisible();
+  await expect(bidItemsTable.getByRole('cell', { name: 'Quote B widget' })).toBeVisible();
 
   // Edit the quantity of the first line (save-on-blur).
-  const qtyInputs = page.locator('table.admin-table tbody input[type="number"]');
+  const qtyInputs = bidItemsTable.locator('tbody input[type="number"]');
   await qtyInputs.first().fill('5');
   await qtyInputs.first().blur();
   await expect(page.getByTestId('bid-item-line-total').first()).toContainText('50');
 
   // Remove the second line.
-  await page.getByRole('row', { name: /Quote B widget/ }).getByRole('button', { name: 'Remove' }).click();
-  await expect(page.getByRole('cell', { name: 'Quote B widget' })).toHaveCount(0);
+  await bidItemsTable.getByRole('row', { name: /Quote B widget/ }).getByRole('button', { name: 'Remove' }).click();
+  await expect(bidItemsTable.getByRole('cell', { name: 'Quote B widget' })).toHaveCount(0);
 
   // Done -> back to the bids library, where the bid now shows 1 item.
   await page.getByRole('button', { name: 'Done' }).click();

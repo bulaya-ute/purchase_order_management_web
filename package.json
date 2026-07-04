@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "node --test src/**/*.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

@@ -10,5 +10,5 @@ export async function login(page: Page, who = ADMIN): Promise<void> {
   await page.fill('#login-password', who.password);
   await page.click('button[type=submit]');
   // The shell renders the primary nav once authenticated.
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
 }
